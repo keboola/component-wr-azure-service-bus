@@ -46,10 +46,15 @@ class MessageSender:
             raise to_user_exception(e, self._entity_name) from e
 
     def _send_all(self, messages: Iterable[ServiceBusMessage]) -> int:
-        batch = self._sender.create_message_batch()
+        # Created lazily on the first message. create_message_batch() is the first
+        # real broker round-trip -- it opens the AMQP link to read the entity's max
+        # message size -- so an empty input table must send nothing without it.
+        batch: ServiceBusMessageBatch | None = None
         batch_count = 0
 
         for message in messages:
+            if batch is None:
+                batch = self._sender.create_message_batch()
             if batch_count >= self._batch_size:
                 self._flush(batch, batch_count)
                 batch = self._sender.create_message_batch()
@@ -70,7 +75,7 @@ class MessageSender:
                 # Overflows an empty batch: too big to batch, send it on its own.
                 self._send_single(message)
 
-        if batch_count > 0:
+        if batch is not None and batch_count > 0:
             self._flush(batch, batch_count)
 
         return self.sent_count

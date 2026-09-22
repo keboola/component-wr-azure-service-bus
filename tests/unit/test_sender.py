@@ -31,8 +31,10 @@ class FakeSender:
     def __init__(self, cap=2):
         self.cap, self.sent_batches, self.sent_singles = cap, [], []
         self.closed = False
+        self.batches_created = 0
 
     def create_message_batch(self):
+        self.batches_created += 1
         return FakeBatch(self.cap)
 
     def send_messages(self, x, **kwargs):
@@ -92,6 +94,9 @@ def test_empty_input_sends_nothing():
     assert n == 0
     assert fs.sent_batches == []
     assert fs.sent_singles == []
+    # Empty input must not open the AMQP link: create_message_batch() is the first
+    # broker round-trip, so it must not be called when there is nothing to send.
+    assert fs.batches_created == 0
 
 
 def test_close_swallows_error_as_warning():
