@@ -25,6 +25,13 @@ from sender import MessageSender
 
 logger = logging.getLogger(__name__)
 
+# A single input cell can legitimately hold a large JSON payload well within the
+# broker's per-message ceiling (Premium allows up to 100 MB). Raise the csv
+# field-size limit so such cells parse; the real size enforcement is the sender's
+# G2 oversized check. A fixed value is used deliberately -- csv.field_size_limit()
+# with sys.maxsize raises OverflowError on some platforms.
+csv.field_size_limit(128 * 1024 * 1024)  # 128 MB
+
 
 class Component(ComponentBase):
     """Reads a Storage input table per config row and sends each row to Azure Service Bus."""
@@ -75,8 +82,14 @@ class Component(ComponentBase):
     @staticmethod
     def _iter_messages(table: TableDefinition, config: Configuration) -> Iterator[ServiceBusMessage]:
         with open(table.full_path, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                yield build_message(row, config)
+            reader = csv.DictReader(f)
+            try:
+                for row in reader:
+                    yield build_message(row, config)
+            except csv.Error as e:
+                raise UserException(
+                    f"Failed to parse the input table '{table.name}': {e}. A cell may exceed the CSV field size limit."
+                ) from e
 
 
 """

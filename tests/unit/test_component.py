@@ -4,7 +4,7 @@ import os
 from unittest import mock
 
 import pytest
-from azure.servicebus.exceptions import ServiceBusConnectionError
+from azure.servicebus.exceptions import MessageSizeExceededError, ServiceBusConnectionError
 from keboola.component.exceptions import UserException
 
 import component as component_mod
@@ -153,3 +153,54 @@ def test_test_connection_failure_exits_with_redacted_message(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "SECRETKEY" not in err
     assert "connect" in err.lower()
+
+
+def test_run_large_cell_over_128kb_sends(tmp_path):
+    # A single cell larger than Python's default ~128 KB csv limit must still parse and send.
+    big = "z" * (200 * 1024)  # 200 KB, comfortably under the 256 KB broker cap
+    client = _run(tmp_path, BASE_PARAMS, [{"a": big, "b": "y"}])
+    assert len(client.sender.sent) == 1
+
+
+def test_run_oversized_single_cell_raises_user_exception(tmp_path):
+    # A single cell over the broker cap must fail fast (G2, exit 1), not crash with exit 2.
+    class OversizeBatch:
+        def add_message(self, m):
+            raise MessageSizeExceededError(message="too big")
+
+    class OversizeSender:
+        def create_message_batch(self):
+            return OversizeBatch()
+
+        def send_messages(self, x):
+            raise MessageSizeExceededError(message="too big")
+
+        def close(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.close()
+            return False
+
+    _write_datadir(tmp_path, BASE_PARAMS, [{"a": "x" * (300 * 1024), "b": "y"}])
+    failing = FakeClient(sender=OversizeSender())
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=failing),
+        pytest.raises(UserException),
+    ):
+        Component().run()
+
+
+def test_run_csv_field_error_becomes_user_exception(tmp_path):
+    # Any residual csv parse error must surface as exit 1, not the opaque exit-2 path.
+    original = csv.field_size_limit()
+    try:
+        csv.field_size_limit(1024)  # force a parse failure on a modest cell
+        with pytest.raises(UserException):
+            _run(tmp_path, BASE_PARAMS, [{"a": "y" * 5000, "b": "z"}])
+    finally:
+        csv.field_size_limit(original)
