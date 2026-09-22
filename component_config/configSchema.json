@@ -1,19 +1,94 @@
 {
   "type": "object",
-  "title": "extractor configuration",
+  "title": "Azure Service Bus Connection",
   "required": [
-    "print_hello"
+    "auth_type"
   ],
   "properties": {
-    "print_hello": {
-      "type": "boolean",
-      "title": "Print Hello",
+    "auth_type": {
+      "type": "string",
+      "title": "Authentication Type",
+      "description": "How the writer authenticates to Azure Service Bus",
+      "enum": [
+        "connection_string",
+        "service_principal"
+      ],
+      "options": {
+        "enum_titles": [
+          "Connection string (SAS)",
+          "Service principal (Entra ID)"
+        ]
+      },
+      "default": "connection_string",
       "propertyOrder": 1
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug",
+    "#connection_string": {
+      "type": "string",
+      "title": "Connection String",
+      "description": "Shared access signature connection string",
+      "format": "password",
+      "options": {
+        "tooltip": "Found in the Azure Portal under the namespace's **Shared access policies** (e.g. `RootManageSharedAccessKey`) — copy the **Connection string–primary key** value.",
+        "inputAttributes": {
+          "placeholder": "Endpoint=sb://<namespace>.servicebus.windows.net/;SharedAccessKeyName=<name>;SharedAccessKey=<key>"
+        },
+        "dependencies": {
+          "auth_type": "connection_string"
+        }
+      },
       "propertyOrder": 2
+    },
+    "tenant_id": {
+      "type": "string",
+      "title": "Tenant ID",
+      "description": "Entra ID (Azure AD) tenant identifier",
+      "options": {
+        "tooltip": "The directory (tenant) ID of the Entra ID app registration — found on the app's **Overview** page in the Azure Portal.",
+        "dependencies": {
+          "auth_type": "service_principal"
+        }
+      },
+      "propertyOrder": 3
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client ID",
+      "description": "Entra ID application (client) identifier",
+      "options": {
+        "tooltip": "The application (client) ID of the Entra ID app registration — found on the app's **Overview** page in the Azure Portal.",
+        "dependencies": {
+          "auth_type": "service_principal"
+        }
+      },
+      "propertyOrder": 4
+    },
+    "#client_secret": {
+      "type": "string",
+      "title": "Client Secret",
+      "description": "Entra ID application client secret",
+      "format": "password",
+      "options": {
+        "tooltip": "Created under the app registration's **Certificates & secrets**. Copy the secret's **value** immediately — Azure only shows it once.",
+        "dependencies": {
+          "auth_type": "service_principal"
+        }
+      },
+      "propertyOrder": 5
+    },
+    "fully_qualified_namespace": {
+      "type": "string",
+      "title": "Fully Qualified Namespace",
+      "description": "Service Bus namespace hostname",
+      "options": {
+        "inputAttributes": {
+          "placeholder": "mynamespace.servicebus.windows.net"
+        },
+        "tooltip": "Found in the Azure Portal on the namespace's **Overview** page as **Host name**.",
+        "dependencies": {
+          "auth_type": "service_principal"
+        }
+      },
+      "propertyOrder": 6
     }
   }
 }

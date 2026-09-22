@@ -1,1 +1,163 @@
-{}
+{
+  "type": "object",
+  "title": "Destination Mapping",
+  "required": [
+    "destination_type",
+    "entity_name",
+    "mode"
+  ],
+  "properties": {
+    "destination_type": {
+      "type": "string",
+      "title": "Destination Type",
+      "description": "Send messages to a topic or a queue",
+      "enum": [
+        "topic",
+        "queue"
+      ],
+      "options": {
+        "enum_titles": [
+          "Topic",
+          "Queue"
+        ]
+      },
+      "propertyOrder": 10
+    },
+    "entity_name": {
+      "type": "string",
+      "title": "Topic or Queue Name",
+      "description": "Name of the destination topic or queue",
+      "options": {
+        "inputAttributes": {
+          "placeholder": "my-topic"
+        },
+        "tooltip": "Must already exist in the Service Bus namespace — the writer does not create topics or queues."
+      },
+      "propertyOrder": 20
+    },
+    "mode": {
+      "type": "string",
+      "title": "Message Body",
+      "description": "What to send as the message body",
+      "enum": [
+        "row_as_json",
+        "column_value"
+      ],
+      "options": {
+        "enum_titles": [
+          "Whole row as JSON",
+          "Single column value"
+        ]
+      },
+      "default": "row_as_json",
+      "propertyOrder": 30
+    },
+    "column": {
+      "type": "string",
+      "title": "Body Column",
+      "description": "Input column whose value becomes the message body",
+      "options": {
+        "dependencies": {
+          "mode": "column_value"
+        }
+      },
+      "propertyOrder": 40
+    },
+    "content_type": {
+      "type": "string",
+      "title": "Content Type",
+      "description": "MIME type set on each message",
+      "default": "application/json",
+      "propertyOrder": 50
+    },
+    "batch_size": {
+      "type": "integer",
+      "title": "Batch Size",
+      "description": "Number of messages sent per batch",
+      "minimum": 1,
+      "default": 1000,
+      "propertyOrder": 60
+    },
+    "time_to_live_seconds": {
+      "type": "integer",
+      "title": "Time To Live (Seconds)",
+      "description": "Per-message expiration; leave blank for the queue/topic default",
+      "minimum": 1,
+      "propertyOrder": 70
+    },
+    "message_properties": {
+      "type": "object",
+      "title": "Message Properties",
+      "format": "grid",
+      "options": {
+        "tooltip": "Optional — map input columns onto Service Bus broker message properties. Leave a field blank to skip that property."
+      },
+      "propertyOrder": 80,
+      "properties": {
+        "message_id_column": {
+          "type": "string",
+          "title": "Message ID Column",
+          "description": "Input column holding the message's unique ID",
+          "propertyOrder": 1
+        },
+        "session_id_column": {
+          "type": "string",
+          "title": "Session ID Column",
+          "description": "Input column holding the session ID",
+          "options": {
+            "tooltip": "Required on the destination if it is a session-enabled queue or topic subscription."
+          },
+          "propertyOrder": 2
+        },
+        "subject_column": {
+          "type": "string",
+          "title": "Subject Column",
+          "description": "Input column holding the message subject (label)",
+          "propertyOrder": 3
+        },
+        "correlation_id_column": {
+          "type": "string",
+          "title": "Correlation ID Column",
+          "description": "Input column holding the correlation ID",
+          "propertyOrder": 4
+        },
+        "partition_key_column": {
+          "type": "string",
+          "title": "Partition Key Column",
+          "description": "Input column holding the partition key",
+          "options": {
+            "tooltip": "Only used on a partitioned entity; must match the session ID when the entity also requires sessions."
+          },
+          "propertyOrder": 5
+        },
+        "scheduled_enqueue_time_column": {
+          "type": "string",
+          "title": "Scheduled Enqueue Time Column",
+          "description": "Input column holding an ISO 8601 timestamp to delay delivery",
+          "propertyOrder": 6
+        },
+        "application_properties_column": {
+          "type": "string",
+          "title": "Application Properties Column",
+          "description": "Input column holding a JSON object of custom properties",
+          "options": {
+            "tooltip": "The column's value must parse as a JSON object, e.g. `{\"source\": \"crm\"}` — each key becomes a custom application property on the message."
+          },
+          "propertyOrder": 7
+        },
+        "reply_to_column": {
+          "type": "string",
+          "title": "Reply To Column",
+          "description": "Input column holding the reply-to address",
+          "propertyOrder": 8
+        },
+        "reply_to_session_id_column": {
+          "type": "string",
+          "title": "Reply To Session ID Column",
+          "description": "Input column holding the reply-to session ID",
+          "propertyOrder": 9
+        }
+      }
+    }
+  }
+}
