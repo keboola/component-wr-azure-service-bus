@@ -58,19 +58,20 @@ How Service Bus maps onto how Keboola runs a component.
 
 Per the maintainer's multi-auth directive, the writer ships a **pluggable credential abstraction** —
 an `auth_type` discriminator selecting one concrete credential builder, structured so more methods can
-slot in later. Two methods are real for v1 (so the seam is justified, not speculative); a third has
-its code path implemented but is not advertised until the platform team confirms it.
+slot in later. **v1 ships exactly two methods** (connection string + service principal). A managed-identity
+path was scoped earlier but **removed by maintainer decision (2026-09-22)**: it carries no credential and
+requires the container to run *as* an Azure identity, which Keboola does not provide today — so it cannot
+work here. It may be re-added later if the platform team confirms Keboola can attach an Azure identity.
 
 | # | Method | `auth_type` value | Fields | Headless? | v1 status |
 |---|---|---|---|---|---|
 | 1 | Connection string / SAS | `connection_string` | `#connection_string` | **Yes** — no interactive/admin step | **Default, fully exercisable** |
 | 2 | Entra ID service principal | `service_principal` | `tenant_id`, `client_id`, `#client_secret`, `fully_qualified_namespace` | **Yes** (client-credentials, no interactive login) | **In scope**; live-testable only after a data-plane RBAC grant (see Provisioning) |
-| 3 | Managed Identity | `managed_identity` | `fully_qualified_namespace` | N/A on Keboola runtime | **Code path only**, not advertised until platform confirms |
+| ~~3~~ | ~~Managed Identity~~ | — | — | — | **Removed (2026-09-22)** — not runnable on Keboola; may return if the platform confirms identity attachment |
 
-- **SDK surface.** Method 1 uses `ServiceBusClient.from_connection_string(conn_str=...)`. Methods 2/3
-  use `ServiceBusClient(fully_qualified_namespace=..., credential=...)` where `credential` is an
-  `azure-identity` `TokenCredential`: `ClientSecretCredential(tenant_id, client_id, client_secret)`
-  for the service principal, `DefaultAzureCredential()` (resolving a managed identity) for method 3.
+- **SDK surface.** Method 1 uses `ServiceBusClient.from_connection_string(conn_str=...)`. Method 2
+  uses `ServiceBusClient(fully_qualified_namespace=..., credential=...)` where `credential` is an
+  `azure-identity` `TokenCredential`: `ClientSecretCredential(tenant_id, client_id, client_secret)`.
   The connection is **AMQP 1.0 over TLS** (pyamqp transport) in all cases — no HTTP data plane (this
   drives the test approach in §7).
 - **Send rights.** The SAS key or the service principal's role must grant **Send** on the target
@@ -90,17 +91,14 @@ its code path implemented but is not advertised until the platform team confirms
   the namespace/entity. The role assignment needs **Owner / User Access Administrator** on the scope
   (Contributor is insufficient — it cannot write role assignments). The user supplies `tenant_id`,
   `client_id`, `#client_secret`, and the `fully_qualified_namespace`.
-- *Method 3 (managed identity):* requires an Azure-hosted identity; **not obtainable from Keboola's
-  runtime** — see blockers.
+- *Managed identity (removed 2026-09-22):* would have required an Azure-hosted identity, **not
+  obtainable from Keboola's runtime**. Removed from v1 entirely; not just hidden. May be revisited if
+  the platform team confirms Keboola can attach an Azure identity to the container.
 
 **Blockers / access:**
 - Method 2's data-plane role grant is an admin action (Owner/UAA). Until it is applied on the test
   namespace, the service-principal path is validated by **mocked-SDK** tests only, not a live send.
   Owner: maintainer.
-- Method 3 is **not exercisable from a Keboola job** (a Keboola container does not run with an Azure
-  managed identity on the customer's Azure tenant). Ship the code path but keep it out of the
-  advertised auth list until the platform team confirms whether any Keboola-side identity federation
-  makes it usable. Owner: platform team.
 - No blocker for v1's default path (connection string) — provisioning is clear and headless.
 
 ## 4. Capability inventory & scope
@@ -121,7 +119,7 @@ sign-off at spec approval (this spec is the sign-off artifact).
 |---|---|---|
 | B1. Connection string (SAS, Send) | **In scope (default)** | Headless, minimum viable, provisioned. |
 | B2. Entra ID service principal (`ClientSecretCredential`) | **In scope** | Maintainer directive; headless client-credentials. Live-testable after the RBAC grant. |
-| B2′. Managed Identity (`DefaultAzureCredential`) | **In scope as code path; not advertised** | Maintainer directive to implement; not exercisable from Keboola runtime — pending platform confirmation. |
+| B2′. Managed Identity (`DefaultAzureCredential`) | **Excluded (removed by maintainer decision 2026-09-22; may add later if the platform confirms Keboola can attach an Azure identity)** | Not runnable on Keboola: the container does not run as an Azure identity, and MI carries no credential. Removed from the component entirely, not just hidden. |
 | B3. `AzureSasCredential` / `AzureNamedKeyCredential` | **Excluded** | Niche; the abstraction leaves room to add it later. Sign-off: recorded here. |
 
 ### C. Send modes
@@ -191,11 +189,10 @@ The actual `configSchema.json` / `configRowSchema.json` (with `options.dependenc
 by `component-build-ui` in Phase 6 — described here, not written as JSON.
 
 **Config-level (root) parameters — the auth block:**
-- `auth_type` — enum, required: `connection_string` (default) · `service_principal` · `managed_identity`.
+- `auth_type` — enum, required: `connection_string` (default) · `service_principal`.
 - `#connection_string` — secret, required when `auth_type=connection_string`.
 - `tenant_id`, `client_id`, `#client_secret`, `fully_qualified_namespace` — required when
   `auth_type=service_principal` (`#client_secret` secret).
-- `fully_qualified_namespace` — required when `auth_type=managed_identity`.
 
 **Row-level parameters — one destination mapping:**
 - `destination_type` — enum, required: `topic` · `queue`.
@@ -224,7 +221,6 @@ Every field's exposure and persistence decided up front (Phase-7 fresh-config ga
 | `auth_type` | config | yes | user-facing (enum) | `connection_string` | yes — explicit choice, visible & self-explanatory |
 | `#connection_string` | config | yes if `auth_type=connection_string` | user-facing (secret) | — | yes (user sets it); only when that auth branch is active |
 | `tenant_id` / `client_id` / `#client_secret` / `fully_qualified_namespace` | config | yes if `auth_type=service_principal` | user-facing (`#client_secret` secret) | — | only when the service-principal branch is active (gated) |
-| `fully_qualified_namespace` (MI) | config | yes if `auth_type=managed_identity` | user-facing | — | only when the MI branch is active |
 | `destination_type` | row | yes | user-facing (enum) | none (explicit choice) | yes — no silent default |
 | `entity_name` | row | yes | user-facing (text) | — | yes — user sets it |
 | `mode` | row | yes | user-facing (enum) | `row_as_json` | yes — explicit, visible |
@@ -276,8 +272,7 @@ Recurring review catches, pre-decided here:
 - **`src/client.py` — credential factory + client.** `build_service_bus_client(auth: AuthConfig) ->
   ServiceBusClient` selects the concrete builder per `auth_type`
   (`from_connection_string` vs `ServiceBusClient(fully_qualified_namespace, credential=...)` with a
-  `ClientSecretCredential` or `DefaultAzureCredential`). Never sets `uamqp_transport`. This is the seam
-  new auth methods slot into.
+  `ClientSecretCredential`). Never sets `uamqp_transport`. This is the seam new auth methods slot into.
 - **`src/sender.py` — send orchestration.** A `MessageSender` wrapping one `ServiceBusSender` (topic or
   queue): the fill-until-full batching loop (`create_message_batch` → `add_message` guarded by
   `MessageSizeExceededError`, flush on size overflow **or** at `batch_size` count, then re-add the
@@ -301,8 +296,8 @@ Recurring review catches, pre-decided here:
   manifests, no `schema`/`column_metadata`, and `dataTypeSupport` is not set. Any scratch file (none
   expected) would go to `/tmp`, never `data/out/tables/`.
 - **Key dependencies.** `azure-servicebus>=7.14,<7.15` (pinned deliberately; pyamqp; avoids the
-  `uamqp_transport` removal in 7.15.0) and `azure-identity` (for `ClientSecretCredential` /
-  `DefaultAzureCredential`). `keboola-component` and `pydantic` from the scaffold.
+  `uamqp_transport` removal in 7.15.0) and `azure-identity` (for `ClientSecretCredential`, the
+  service-principal path). `keboola-component` and `pydantic` from the scaffold.
 
 ## 7. Testing — enumerate the cases up front
 
@@ -368,7 +363,8 @@ here** (they live in the gitignored local test-env note).
   the row-based config has `rows` ≥ 1.
 - **Service principal path.** Live-testable only after the **"Azure Service Bus Data Sender"** RBAC
   grant is applied (needs Owner/UAA). Until then it is covered by mocked-SDK tests. **Managed identity**
-  is not exercisable from a Keboola job — code path only, no cf-dev run.
+  was removed from the component (2026-09-22) — not exercisable from a Keboola job, so there is no MI
+  path to run.
 - **Post-release.** A customer has offered real-traffic validation against their own Service Bus
   workload once a branch build exists — a strong extra confidence path after the smoke test.
 
@@ -381,8 +377,10 @@ here** (they live in the gitignored local test-env note).
 2. **Service-principal (B2) not yet live-testable.** The data-plane RBAC role grant requires
    Owner/User Access Administrator (the provisioning account has only Contributor). Owner: maintainer
    to run the grant; until then B2 is mock-validated.
-3. **Managed Identity (B2′) not exercisable from Keboola runtime.** Ship the code path but do not
-   advertise it until the platform team confirms usability. Owner: platform team.
+3. **Managed Identity (B2′) removed from v1 (2026-09-22).** Not exercisable from a Keboola job (the
+   container does not run as an Azure identity, and MI carries no credential), so it was removed from
+   the component entirely — not just hidden. Re-add only if the platform team confirms Keboola can
+   attach an Azure identity. Owner: platform team.
 4. **Batch spanning multiple `session_id`s — [inferred, not verified].** Whether a single
    `ServiceBusMessageBatch` may carry messages with different `session_id`s to a session-enabled entity
    is not confirmed. Verify against the session-enabled queue in Phase 7; if unsupported, group by

@@ -2,7 +2,7 @@ The Azure Service Bus writer sends each row of a Keboola Storage table as a mess
 
 Configuration is row-based: the connection to the namespace is set once at the configuration level, and each row maps one input table to one destination entity.
 
-**Authentication** — connect with a shared access signature (SAS) connection string, an Entra ID service principal (tenant ID, client ID, client secret), or a managed identity (namespace host name only).
+**Authentication** — connect with a shared access signature (SAS) connection string, or an Entra ID service principal (tenant ID, client ID, client secret, and namespace host name).
 
 **Message body** — send the whole input row as a JSON object, or the value of a single column.
 

@@ -45,9 +45,15 @@ def test_connection_string_auth_requires_secret():
         Configuration(auth_type="connection_string", destination_type="queue", entity_name="q1")
 
 
-def test_managed_identity_requires_namespace():
+def test_managed_identity_is_rejected():
+    # Managed identity was removed (maintainer decision 2026-09-22): it is no longer a valid auth_type.
     with pytest.raises(UserException):
-        Configuration(auth_type="managed_identity", destination_type="queue", entity_name="q1")
+        Configuration(
+            auth_type="managed_identity",
+            destination_type="queue",
+            entity_name="q1",
+            fully_qualified_namespace="ns.servicebus.windows.net",
+        )
 
 
 def test_batch_size_min():

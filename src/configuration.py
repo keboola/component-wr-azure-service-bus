@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 class AuthType(StrEnum):
     CONNECTION_STRING = "connection_string"
     SERVICE_PRINCIPAL = "service_principal"
-    MANAGED_IDENTITY = "managed_identity"
 
 
 class DestinationType(StrEnum):
@@ -104,6 +103,4 @@ class Configuration(BaseModel):
             missing = [name for name, value in required.items() if not value]
             if missing:
                 raise ValueError(f"Service principal auth requires: {', '.join(missing)}.")
-        if self.auth_type == AuthType.MANAGED_IDENTITY and not self.fully_qualified_namespace:
-            raise ValueError("`fully_qualified_namespace` is required for managed_identity auth.")
         return self

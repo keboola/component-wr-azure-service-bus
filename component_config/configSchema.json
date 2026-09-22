@@ -11,14 +11,12 @@
       "description": "How the writer authenticates to Azure Service Bus",
       "enum": [
         "connection_string",
-        "service_principal",
-        "managed_identity"
+        "service_principal"
       ],
       "options": {
         "enum_titles": [
           "Connection string (SAS)",
-          "Service principal (Entra ID)",
-          "Managed identity (Entra ID)"
+          "Service principal (Entra ID)"
         ]
       },
       "default": "connection_string",
@@ -87,10 +85,7 @@
         },
         "tooltip": "Found in the Azure Portal on the namespace's **Overview** page as **Host name**.",
         "dependencies": {
-          "auth_type": [
-            "service_principal",
-            "managed_identity"
-          ]
+          "auth_type": "service_principal"
         }
       },
       "propertyOrder": 6

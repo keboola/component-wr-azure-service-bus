@@ -1,6 +1,6 @@
 ### Authentication
 
-Set once for the whole configuration. Choose **Connection string (SAS)**, **Service principal (Entra ID)**, or **Managed identity**, then fill in the fields for that method.
+Set once for the whole configuration. Choose **Connection string (SAS)** or **Service principal (Entra ID)**, then fill in the fields for that method.
 
 ### Destination mapping (per row)
 

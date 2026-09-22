@@ -47,23 +47,6 @@ def test_service_principal_path():
         assert "uamqp_transport" not in sb.call_args.kwargs
 
 
-def test_managed_identity_path():
-    cfg = Configuration(
-        auth_type="managed_identity",
-        fully_qualified_namespace="ns.servicebus.windows.net",
-        destination_type="queue",
-        entity_name="q1",
-    )
-    with (
-        mock.patch.object(client_mod, "ServiceBusClient") as sb,
-        mock.patch.object(client_mod, "DefaultAzureCredential") as cred,
-    ):
-        client_mod.build_service_bus_client(cfg)
-        cred.assert_called_once_with()
-        sb.assert_called_once()
-        assert "uamqp_transport" not in sb.call_args.kwargs
-
-
 def test_bad_connection_string_redacts_key():
     cfg = Configuration(**BASE)
     with mock.patch.object(client_mod, "ServiceBusClient") as sb:

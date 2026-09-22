@@ -4,8 +4,9 @@ Azure Service Bus's data plane is AMQP 1.0 over TLS, not HTTP, so ``vcrpy``
 (the engine behind ``keboola.datadirtest``'s VCR recording) cannot record or
 replay the send path -- a pure sender makes no HTTP calls. Instead of recording
 cassettes, this autouse fixture patches the Azure SDK boundary inside
-``src/client.py`` (``ServiceBusClient`` plus the two credential classes) with
-message-capturing fakes, so the component's full ``run()`` / ``testConnection``
+``src/client.py`` (``ServiceBusClient`` plus the ``ClientSecretCredential``
+class) with message-capturing fakes, so the component's full ``run()`` /
+``testConnection``
 path executes end-to-end with NO network. The fake records every
 ``ServiceBusMessage`` and batch it is handed so the tests can assert on them.
 
@@ -146,11 +147,6 @@ class FakeClientSecretCredential:
         self.client_id = client_id
 
 
-class FakeDefaultAzureCredential:
-    def __init__(self, *args, **kwargs) -> None:
-        self.kind = "default"
-
-
 @pytest.fixture(autouse=True)
 def mock_service_bus(monkeypatch):
     """Patch the SDK boundary in client.py; yield the per-test capture sink."""
@@ -159,5 +155,4 @@ def mock_service_bus(monkeypatch):
     FakeServiceBusClient.max_bytes = STANDARD_TIER_CAP_BYTES
     monkeypatch.setattr(client_mod, "ServiceBusClient", FakeServiceBusClient)
     monkeypatch.setattr(client_mod, "ClientSecretCredential", FakeClientSecretCredential)
-    monkeypatch.setattr(client_mod, "DefaultAzureCredential", FakeDefaultAzureCredential)
     yield capture

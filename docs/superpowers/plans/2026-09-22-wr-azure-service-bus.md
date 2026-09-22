@@ -14,9 +14,14 @@
 
 Every task's requirements implicitly include these (values copied verbatim from the spec):
 
+> **Update (2026-09-22): `managed_identity` was REMOVED from the component by maintainer decision.**
+> v1 ships exactly two auth methods — `connection_string` and `service_principal`. The MI references
+> below are historical; MI is no longer implemented (no `DefaultAzureCredential`, no `managed_identity`
+> `auth_type`). It may return if the platform team confirms Keboola can attach an Azure identity.
+
 - **Python 3.14** — `requires-python = "~=3.14.0"`; ruff `py314`. 3.14-only syntax is correct, not a bug.
 - **SDK pin:** `azure-servicebus>=7.14,<7.15` on **pyamqp**. **NEVER set `uamqp_transport`.** Expose **no transport-selection config field**.
-- **Auth deps:** `azure-identity` for `ClientSecretCredential` (service principal) and `DefaultAzureCredential` (managed-identity code path).
+- **Auth deps:** `azure-identity` for `ClientSecretCredential` (service principal). (Historical: a `DefaultAzureCredential` managed-identity code path was planned but removed 2026-09-22.)
 - **Secrets:** `#connection_string` and `#client_secret` are `#`-prefixed (platform-encrypted, `KBC::ProjectSecure`). Never a plain key. Redact the SAS `SharedAccessKey` / client secret from any surfaced error or log.
 - **Config rows:** auth at config (root) level; destination + mapping at row level; each row's input mapping on the row. Rows run **sequentially by default** (parallelism opt-in, off unless set).
 - **No output tables; `state.json` unused (not incremental).** Any scratch file → `/tmp`, never `data/out/tables/`. No manifests / `dataTypeSupport`.

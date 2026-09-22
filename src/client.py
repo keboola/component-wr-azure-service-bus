@@ -10,7 +10,7 @@ import logging
 import re
 from collections.abc import Callable
 
-from azure.identity import ClientSecretCredential, DefaultAzureCredential
+from azure.identity import ClientSecretCredential
 from azure.servicebus import ServiceBusClient
 from azure.servicebus.exceptions import (
     MessagingEntityNotFoundError,
@@ -67,17 +67,9 @@ def _build_from_service_principal(config: Configuration) -> ServiceBusClient:
     return ServiceBusClient(fully_qualified_namespace=config.fully_qualified_namespace, credential=credential)
 
 
-def _build_from_managed_identity(config: Configuration) -> ServiceBusClient:
-    return ServiceBusClient(
-        fully_qualified_namespace=config.fully_qualified_namespace,
-        credential=DefaultAzureCredential(),
-    )
-
-
 _BUILDERS: dict[AuthType, Callable[[Configuration], ServiceBusClient]] = {
     AuthType.CONNECTION_STRING: _build_from_connection_string,
     AuthType.SERVICE_PRINCIPAL: _build_from_service_principal,
-    AuthType.MANAGED_IDENTITY: _build_from_managed_identity,
 }
 
 
