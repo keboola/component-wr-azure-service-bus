@@ -35,7 +35,7 @@ class FakeSender:
     def create_message_batch(self):
         return FakeBatch(self.cap)
 
-    def send_messages(self, x):
+    def send_messages(self, x, **kwargs):
         if isinstance(x, FakeBatch):
             self.sent_batches.append(list(x.msgs))
         else:
@@ -76,7 +76,7 @@ def test_oversized_message_raises_user_exception():
         def create_message_batch(self):
             return FakeBatch(cap=0)
 
-        def send_messages(self, x):
+        def send_messages(self, x, **kwargs):
             raise MessageSizeExceededError(message="too big")
 
         def close(self):
@@ -110,7 +110,7 @@ class RaisingOnBatchSender:
     def create_message_batch(self):
         raise self.error
 
-    def send_messages(self, x):
+    def send_messages(self, x, **kwargs):
         pass
 
     def close(self):
@@ -124,7 +124,7 @@ class RaisingOnSendSender:
     def create_message_batch(self):
         return FakeBatch(cap=1000)
 
-    def send_messages(self, x):
+    def send_messages(self, x, **kwargs):
         raise self.error
 
     def close(self):
@@ -150,6 +150,29 @@ def test_broker_error_on_flush_maps_to_user_exception():
     with pytest.raises(UserException):
         # batch_size=1 forces a flush (send_messages) on the second message.
         MessageSender(_sender(sender), batch_size=1, entity_name="q1").send(_messages("a", "b"))
+
+
+def test_sent_count_reflects_partial_delivery_before_failure():
+    # I6: sent_count exposes how many messages were confirmed delivered before a mid-run flush failed.
+    class PartialSender:
+        def __init__(self):
+            self.calls = 0
+
+        def create_message_batch(self):
+            return FakeBatch(cap=1000)
+
+        def send_messages(self, x, **kwargs):
+            self.calls += 1
+            if self.calls == 2:
+                raise ServiceBusConnectionError(message="dropped")
+
+        def close(self):
+            pass
+
+    sender = MessageSender(_sender(PartialSender()), batch_size=1, entity_name="q1")
+    with pytest.raises(UserException):
+        sender.send(_messages("a", "b", "c"))
+    assert sender.sent_count == 1  # first single-message batch flushed before the 2nd flush failed
 
 
 def test_broker_error_message_redacts_sas_key():

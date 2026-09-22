@@ -10,7 +10,7 @@ the fields and validates them.
 
 import logging
 from enum import StrEnum
-from typing import Any
+from typing import Any, Self
 
 from keboola.component.exceptions import UserException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -50,7 +50,7 @@ class MessagePropertyMap(BaseModel):
 
 
 class Configuration(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     auth_type: AuthType
 
@@ -68,7 +68,7 @@ class Configuration(BaseModel):
     column: str | None = None
     content_type: str = "application/json"
     batch_size: int = Field(default=1000, ge=1)
-    time_to_live_seconds: int | None = None
+    time_to_live_seconds: int | None = Field(default=None, ge=1)
     message_properties: MessagePropertyMap = Field(default_factory=MessagePropertyMap)
 
     def __init__(self, **data: Any) -> None:
@@ -82,15 +82,19 @@ class Configuration(BaseModel):
             raise UserException(f"Validation Error: {', '.join(messages)}") from e
 
     @model_validator(mode="after")
-    def _validate_body_mode(self):
-        if self.mode == BodyMode.COLUMN_VALUE and not self.column:
-            raise ValueError("`column` is required when `mode` is `column_value`.")
-        if self.mode != BodyMode.COLUMN_VALUE and self.column:
-            raise ValueError("`column` may only be set when `mode` is `column_value`.")
+    def _validate_body_mode(self) -> Self:
+        # `column` is only meaningful for column_value mode. Require it there; for any
+        # other mode a leftover `column` (e.g. from switching modes in the UI) is
+        # tolerated by nulling it, rather than failing the whole configuration.
+        if self.mode == BodyMode.COLUMN_VALUE:
+            if not self.column:
+                raise ValueError("`column` is required when `mode` is `column_value`.")
+        else:
+            self.column = None
         return self
 
     @model_validator(mode="after")
-    def _validate_auth(self):
+    def _validate_auth(self) -> Self:
         if self.auth_type == AuthType.CONNECTION_STRING and not self.connection_string:
             raise ValueError("`#connection_string` is required for connection_string auth.")
         if self.auth_type == AuthType.SERVICE_PRINCIPAL:

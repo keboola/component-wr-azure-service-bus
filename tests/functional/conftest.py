@@ -77,7 +77,7 @@ class FakeSender:
         self._capture.batches_created += 1
         return FakeBatch(self._max)
 
-    def send_messages(self, message_or_batch) -> None:
+    def send_messages(self, message_or_batch, **kwargs) -> None:
         if isinstance(message_or_batch, FakeBatch):
             msgs = list(message_or_batch.messages)
             self._capture.batches.append(msgs)

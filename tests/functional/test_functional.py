@@ -140,16 +140,20 @@ def test_08_run_oversized_row(mock_service_bus, tmp_path, monkeypatch, capsys):
     assert "size" in (combined.out + combined.err).lower()
 
 
-def test_09_run_missing_creds(mock_service_bus, tmp_path, monkeypatch):
+def test_09_run_missing_creds(mock_service_bus, tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
         run_case("09_run_missing_creds", tmp_path, monkeypatch)
     assert exc.value.code == 1
+    combined = capsys.readouterr()
+    assert "connection_string" in (combined.out + combined.err).lower()
 
 
-def test_10_run_missing_entity_name(mock_service_bus, tmp_path, monkeypatch):
+def test_10_run_missing_entity_name(mock_service_bus, tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
         run_case("10_run_missing_entity_name", tmp_path, monkeypatch)
     assert exc.value.code == 1
+    combined = capsys.readouterr()
+    assert "entity_name" in (combined.out + combined.err).lower()
 
 
 # --- Run: edge case (empty input) ----------------------------------------------
@@ -188,3 +192,33 @@ def test_13_run_bad_properties_json(mock_service_bus, tmp_path, monkeypatch, cap
     captured = capsys.readouterr()
     combined = (captured.out + captured.err).lower()
     assert "application_properties" in combined or "json" in combined
+
+
+# --- Run: header validation (B3 -- mistyped column names fail fast) -------------
+
+
+def test_14_run_missing_body_column(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("14_run_missing_body_column", tmp_path, monkeypatch)
+    assert exc.value.code == 1  # column_value body column absent from header -> UserException
+    combined = capsys.readouterr()
+    assert "does_not_exist" in (combined.out + combined.err)
+
+
+def test_15_run_missing_property_column(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("15_run_missing_property_column", tmp_path, monkeypatch)
+    assert exc.value.code == 1  # message-property column absent from header -> UserException
+    combined = capsys.readouterr()
+    assert "does_not_exist" in (combined.out + combined.err)
+
+
+# --- Run: ragged row (I2 -- missing trailing cell must not crash with exit 2) ----
+
+
+def test_16_run_ragged_row(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("16_run_ragged_row", tmp_path, monkeypatch)
+    assert exc.value.code == 1  # None cell -> exit-1 UserException, not exit-2 TypeError
+    combined = capsys.readouterr()
+    assert "application_properties" in (combined.out + combined.err).lower()

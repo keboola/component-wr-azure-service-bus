@@ -18,18 +18,24 @@ from azure.servicebus import ServiceBusMessage, ServiceBusMessageBatch, ServiceB
 from azure.servicebus.exceptions import MessageSizeExceededError, ServiceBusError
 from keboola.component.exceptions import UserException
 
-from client import to_user_exception
+from client import redact_secrets, to_user_exception
 
 logger = logging.getLogger(__name__)
+
+# Bound each broker send so a stalled AMQP link fails the job with an actionable
+# timeout error instead of hanging. A fixed value is used deliberately -- this is
+# a transport safety net, not a user-tunable knob, so it is not a config field.
+SEND_TIMEOUT_SECONDS = 60
 
 
 class MessageSender:
     """Wrap one ServiceBusSender with size-and-count batching plus close-safety."""
 
-    def __init__(self, sender: ServiceBusSender, batch_size: int, entity_name: str = ""):
+    def __init__(self, sender: ServiceBusSender, batch_size: int, entity_name: str = "") -> None:
         self._sender = sender
         self._batch_size = batch_size
         self._entity_name = entity_name
+        self.sent_count = 0  # messages confirmed delivered so far (for partial-failure reporting)
 
     def send(self, messages: Iterable[ServiceBusMessage]) -> int:
         """Send every message, batching by size and count; return the number sent."""
@@ -40,13 +46,12 @@ class MessageSender:
             raise to_user_exception(e, self._entity_name) from e
 
     def _send_all(self, messages: Iterable[ServiceBusMessage]) -> int:
-        count = 0
         batch = self._sender.create_message_batch()
         batch_count = 0
 
         for message in messages:
             if batch_count >= self._batch_size:
-                self._sender.send_messages(batch)
+                self._flush(batch, batch_count)
                 batch = self._sender.create_message_batch()
                 batch_count = 0
 
@@ -54,7 +59,7 @@ class MessageSender:
                 batch_count += 1
             elif batch_count > 0:
                 # The current (non-empty) batch is full: flush and start fresh.
-                self._sender.send_messages(batch)
+                self._flush(batch, batch_count)
                 batch = self._sender.create_message_batch()
                 batch_count = 0
                 if self._try_add(batch, message):
@@ -65,12 +70,14 @@ class MessageSender:
                 # Overflows an empty batch: too big to batch, send it on its own.
                 self._send_single(message)
 
-            count += 1
-
         if batch_count > 0:
-            self._sender.send_messages(batch)
+            self._flush(batch, batch_count)
 
-        return count
+        return self.sent_count
+
+    def _flush(self, batch: ServiceBusMessageBatch, batch_count: int) -> None:
+        self._sender.send_messages(batch, timeout=SEND_TIMEOUT_SECONDS)
+        self.sent_count += batch_count
 
     @staticmethod
     def _try_add(batch: ServiceBusMessageBatch, message: ServiceBusMessage) -> bool:
@@ -82,12 +89,13 @@ class MessageSender:
 
     def _send_single(self, message: ServiceBusMessage) -> None:
         try:
-            self._sender.send_messages(message)
+            self._sender.send_messages(message, timeout=SEND_TIMEOUT_SECONDS)
         except MessageSizeExceededError as e:
             raise UserException(
                 "A message exceeds the target entity's single-message size limit and cannot be sent. "
                 "Reduce the row size, or target a Premium-tier entity with a higher cap."
             ) from e
+        self.sent_count += 1
 
     def close(self) -> None:
         """Close the sender, swallowing a post-delivery close error as a warning (G4)."""
@@ -95,4 +103,4 @@ class MessageSender:
             self._sender.close()
         except Exception as e:  # noqa: BLE001 - G4: messages are already delivered; surfacing a
             # post-delivery close error would trigger a Keboola re-run and resend, so swallow it.
-            logger.warning("Ignoring Service Bus sender close error after delivery: %s", e)
+            logger.warning("Ignoring Service Bus sender close error after delivery: %s", redact_secrets(str(e)))

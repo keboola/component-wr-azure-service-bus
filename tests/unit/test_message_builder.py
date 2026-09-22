@@ -1,11 +1,12 @@
 import json
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
 from keboola.component.exceptions import UserException
 
 from configuration import Configuration
-from message_builder import build_message
+from message_builder import build_message, required_columns
 
 BASE = {
     "auth_type": "connection_string",
@@ -103,3 +104,49 @@ def test_bad_scheduled_enqueue_time_raises():
     cfg = Configuration(**{**BASE, "message_properties": {"scheduled_enqueue_time_column": "when"}})
     with pytest.raises(UserException):
         build_message({"when": "not-a-timestamp"}, cfg)
+
+
+# --- I2: ragged rows (DictReader fills missing trailing cells with None) --------
+
+
+def test_ragged_row_application_properties_none_raises():
+    # A None cell must map to an exit-1 UserException, not an uncaught TypeError (exit 2).
+    cfg = Configuration(**{**BASE, "message_properties": {"application_properties_column": "props"}})
+    with pytest.raises(UserException):
+        build_message(cast("dict[str, str]", {"a": "1", "props": None}), cfg)
+
+
+def test_ragged_row_scheduled_time_none_raises():
+    cfg = Configuration(**{**BASE, "message_properties": {"scheduled_enqueue_time_column": "when"}})
+    with pytest.raises(UserException):
+        build_message(cast("dict[str, str]", {"when": None}), cfg)
+
+
+def test_ragged_row_column_value_none_wraps_empty():
+    # column_value body with a None cell must not crash; a missing cell is an empty value.
+    cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
+    msg = build_message(cast("dict[str, str]", {"payload": None}), cfg)
+    assert json.loads(str(msg)) == {"data": ""}
+
+
+# --- B3: required_columns collects every referenced input column ----------------
+
+
+def test_required_columns_collects_body_and_property_columns():
+    cfg = Configuration(
+        **{
+            **BASE,
+            "mode": "column_value",
+            "column": "payload",
+            "message_properties": {
+                "message_id_column": "mid",
+                "application_properties_column": "props",
+                "scheduled_enqueue_time_column": "when",
+            },
+        }
+    )
+    assert set(required_columns(cfg)) == {"payload", "mid", "props", "when"}
+
+
+def test_required_columns_empty_for_row_as_json_without_properties():
+    assert required_columns(Configuration(**BASE)) == []

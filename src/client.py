@@ -51,7 +51,7 @@ def to_user_exception(error: ServiceBusError, entity_name: str | None = None) ->
     elif isinstance(error, ServiceBusConnectionError | ServiceBusCommunicationError):
         message = "Could not connect to the Service Bus namespace. Check the namespace host name and network access."
     else:
-        message = "Azure Service Bus reported an error while sending."
+        message = "Azure Service Bus reported an error."
     return UserException(f"{message} (details: {detail})")
 
 
@@ -63,8 +63,11 @@ def _build_from_connection_string(config: Configuration) -> ServiceBusClient:
 
 
 def _build_from_service_principal(config: Configuration) -> ServiceBusClient:
-    credential = ClientSecretCredential(config.tenant_id, config.client_id, config.client_secret)
-    return ServiceBusClient(fully_qualified_namespace=config.fully_qualified_namespace, credential=credential)
+    try:
+        credential = ClientSecretCredential(config.tenant_id, config.client_id, config.client_secret)
+        return ServiceBusClient(fully_qualified_namespace=config.fully_qualified_namespace, credential=credential)
+    except ValueError as e:
+        raise UserException(f"Invalid service principal credentials: {redact_secrets(str(e))}") from e
 
 
 _BUILDERS: dict[AuthType, Callable[[Configuration], ServiceBusClient]] = {

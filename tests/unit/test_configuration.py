@@ -24,9 +24,10 @@ def test_column_value_requires_column():
         Configuration(**{**BASE, "mode": "column_value"})  # no `column`
 
 
-def test_column_forbidden_without_column_value():
-    with pytest.raises(UserException):
-        Configuration(**{**BASE, "column": "payload"})  # mode defaults row_as_json
+def test_column_ignored_without_column_value():
+    # I8: a leftover `column` with a non-column_value mode is tolerated (nulled), not rejected.
+    c = Configuration(**{**BASE, "column": "payload"})  # mode defaults row_as_json
+    assert c.column is None
 
 
 def test_service_principal_requires_all_fields():
@@ -59,6 +60,12 @@ def test_managed_identity_is_rejected():
 def test_batch_size_min():
     with pytest.raises(UserException):
         Configuration(**{**BASE, "batch_size": 0})
+
+
+def test_time_to_live_seconds_min():
+    # I1: a non-positive TTL is rejected (mirrors batch_size ge=1).
+    with pytest.raises(UserException):
+        Configuration(**{**BASE, "time_to_live_seconds": 0})
 
 
 def test_message_properties_parsed():

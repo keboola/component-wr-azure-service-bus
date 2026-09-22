@@ -270,5 +270,75 @@
         }
       }
     }
+  },
+  {
+    "name": "14_run_missing_body_column",
+    "description": "column_value mode with a body column absent from the input header fails with exit 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "column_value",
+        "column": "does_not_exist"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "15_run_missing_property_column",
+    "description": "A message-property column mapping to an absent header column fails with exit 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json",
+        "message_properties": {
+          "message_id_column": "does_not_exist"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "16_run_ragged_row",
+    "description": "A ragged row (missing trailing cell -> None) maps to exit 1, not an uncaught TypeError (exit 2).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "ragged-queue",
+        "mode": "row_as_json",
+        "message_properties": {
+          "application_properties_column": "props"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.ragged", "destination": "ragged.csv"}
+          ]
+        }
+      }
+    }
   }
 ]

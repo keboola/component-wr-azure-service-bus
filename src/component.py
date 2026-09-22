@@ -18,9 +18,9 @@ from keboola.component.dao import TableDefinition
 from keboola.component.exceptions import UserException
 from keboola.component.sync_actions import MessageType, ValidationResult
 
-from client import build_service_bus_client, to_user_exception
+from client import build_service_bus_client, redact_secrets, to_user_exception
 from configuration import Configuration, DestinationType
-from message_builder import build_message
+from message_builder import build_message, required_columns
 from sender import MessageSender
 
 logger = logging.getLogger(__name__)
@@ -43,10 +43,19 @@ class Component(ComponentBase):
         """Send every row of the row's single input table to the configured entity."""
         config = Configuration(**self.configuration.parameters)
         table = self._resolve_input_table()
+        self._validate_columns(table, config)
         with build_service_bus_client(config) as client:
             message_sender = MessageSender(self._open_sender(client, config), config.batch_size, config.entity_name)
             try:
                 sent = message_sender.send(self._iter_messages(table, config))
+            except Exception:
+                # Some messages may already be on the broker; a Keboola re-run resends them.
+                logger.warning(
+                    "Send failed after %d message(s) were delivered; re-running this configuration may resend "
+                    "them unless duplicate detection is enabled on the target entity.",
+                    message_sender.sent_count,
+                )
+                raise
             finally:
                 message_sender.close()
         logger.info("Sent %d message(s) to %s '%s'.", sent, config.destination_type, config.entity_name)
@@ -57,7 +66,11 @@ class Component(ComponentBase):
         config = Configuration(**self.configuration.parameters)
         try:
             with build_service_bus_client(config) as client, self._open_sender(client, config) as sender:
-                sender.create_message_batch()  # forces the real connection + auth round-trip
+                # Forces the real connection + auth round-trip. The SDK's create_message_batch()
+                # exposes no timeout parameter, so this probe cannot be bounded here; the Keboola
+                # sync-action/job timeout is the backstop against a stalled link. Do not "fix"
+                # this by passing timeout= -- the SDK would raise TypeError.
+                sender.create_message_batch()
         except ServiceBusError as e:
             raise to_user_exception(e, config.entity_name) from e
         return ValidationResult("Connection to Azure Service Bus succeeded.", MessageType.SUCCESS)
@@ -71,6 +84,19 @@ class Component(ComponentBase):
         return tables[0]
 
     @staticmethod
+    def _validate_columns(table: TableDefinition, config: Configuration) -> None:
+        """Fail fast (exit 1) if a configured body/property column is absent from the input header."""
+        with open(table.full_path, newline="", encoding="utf-8") as f:
+            header = csv.DictReader(f).fieldnames or []
+        available = set(header)
+        missing = sorted({name for name in required_columns(config) if name not in available})
+        if missing:
+            raise UserException(
+                f"Configured column(s) not found in the input table '{table.name}': {', '.join(missing)}. "
+                f"Available columns: {', '.join(header)}."
+            )
+
+    @staticmethod
     def _open_sender(client: ServiceBusClient, config: Configuration) -> ServiceBusSender:
         try:
             if config.destination_type == DestinationType.TOPIC:
@@ -78,6 +104,15 @@ class Component(ComponentBase):
             return client.get_queue_sender(queue_name=config.entity_name)
         except ServiceBusError as e:
             raise to_user_exception(e, config.entity_name) from e
+        except ValueError as e:
+            # get_queue_sender/get_topic_sender raise a bare ValueError when the connection
+            # string carries an EntityPath that differs from the configured entity_name.
+            raise UserException(
+                f"The connection string's entity (EntityPath) does not match the configured "
+                f"entity_name '{config.entity_name}'. Use a namespace-level connection string "
+                f"(no EntityPath), or set entity_name to the entity named in the connection string. "
+                f"(details: {redact_secrets(str(e))})"
+            ) from e
 
     @staticmethod
     def _iter_messages(table: TableDefinition, config: Configuration) -> Iterator[ServiceBusMessage]:
@@ -101,7 +136,7 @@ if __name__ == "__main__":
         # this triggers the run method by default and is controlled by the configuration.action parameter
         comp.execute_action()
     except UserException as e:
-        logger.error(str(e))
+        logger.error(redact_secrets(str(e)))
         sys.exit(1)
     except Exception:
         logger.exception("Component failed with an unexpected error")

@@ -37,7 +37,7 @@ class FakeSender:
             raise self.batch_error
         return FakeBatch()
 
-    def send_messages(self, x):
+    def send_messages(self, x, **kwargs):
         if isinstance(x, FakeBatch):
             self.sent.extend(x.msgs)
         else:
@@ -172,7 +172,7 @@ def test_run_oversized_single_cell_raises_user_exception(tmp_path):
         def create_message_batch(self):
             return OversizeBatch()
 
-        def send_messages(self, x):
+        def send_messages(self, x, **kwargs):
             raise MessageSizeExceededError(message="too big")
 
         def close(self):
@@ -193,6 +193,58 @@ def test_run_oversized_single_cell_raises_user_exception(tmp_path):
         pytest.raises(UserException),
     ):
         Component().run()
+
+
+def test_run_entity_path_mismatch_raises_user_exception(tmp_path):
+    # B2: get_queue_sender raises a bare ValueError when the connection string's EntityPath
+    # differs from entity_name; it must surface as a UserException (exit 1), not exit 2.
+    class MismatchClient:
+        def get_queue_sender(self, queue_name):
+            raise ValueError("The EntityPath in the connection string does not match the queue name.")
+
+        def get_topic_sender(self, topic_name):
+            raise ValueError("mismatch")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    _write_datadir(tmp_path, BASE_PARAMS, [{"a": "1", "b": "x"}])
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=MismatchClient()),
+        pytest.raises(UserException) as exc,
+    ):
+        Component().run()
+    assert "entity_name" in str(exc.value).lower()
+
+
+def test_run_missing_body_column_raises_user_exception(tmp_path):
+    # B3: a column_value body column absent from the input header fails fast with exit 1.
+    params = {**BASE_PARAMS, "mode": "column_value", "column": "missing_col"}
+    _write_datadir(tmp_path, params, [{"a": "1", "b": "x"}])
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=FakeClient()),
+        pytest.raises(UserException) as exc,
+    ):
+        Component().run()
+    assert "missing_col" in str(exc.value)
+
+
+def test_run_missing_property_column_raises_user_exception(tmp_path):
+    # B3: a message-property column mapping to an absent header column fails fast with exit 1.
+    params = {**BASE_PARAMS, "message_properties": {"message_id_column": "nope_col"}}
+    _write_datadir(tmp_path, params, [{"a": "1", "b": "x"}])
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=FakeClient()),
+        pytest.raises(UserException) as exc,
+    ):
+        Component().run()
+    assert "nope_col" in str(exc.value)
 
 
 def test_run_csv_field_error_becomes_user_exception(tmp_path):
