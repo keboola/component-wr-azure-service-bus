@@ -2,7 +2,12 @@ from typing import cast
 
 import pytest
 from azure.servicebus import ServiceBusMessage, ServiceBusSender
-from azure.servicebus.exceptions import MessageSizeExceededError
+from azure.servicebus.exceptions import (
+    MessageSizeExceededError,
+    MessagingEntityNotFoundError,
+    ServiceBusAuthenticationError,
+    ServiceBusConnectionError,
+)
 from keboola.component.exceptions import UserException
 
 from sender import MessageSender
@@ -96,3 +101,60 @@ def test_close_swallows_error_as_warning():
 
     # close() must not raise (G4 no double-send)
     MessageSender(_sender(BadCloseSender()), batch_size=1000).close()
+
+
+class RaisingOnBatchSender:
+    def __init__(self, error):
+        self.error = error
+
+    def create_message_batch(self):
+        raise self.error
+
+    def send_messages(self, x):
+        pass
+
+    def close(self):
+        pass
+
+
+class RaisingOnSendSender:
+    def __init__(self, error):
+        self.error = error
+
+    def create_message_batch(self):
+        return FakeBatch(cap=1000)
+
+    def send_messages(self, x):
+        raise self.error
+
+    def close(self):
+        pass
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ServiceBusConnectionError(message="namespace unreachable"),
+        ServiceBusAuthenticationError(message="bad credentials"),
+        MessagingEntityNotFoundError(message="no such queue"),
+    ],
+)
+def test_broker_error_on_create_batch_maps_to_user_exception(error):
+    # A broker error is user-fixable -> UserException, not a bare ServiceBusError (which would exit 2).
+    with pytest.raises(UserException):
+        MessageSender(_sender(RaisingOnBatchSender(error)), batch_size=1000, entity_name="q1").send(_messages("a"))
+
+
+def test_broker_error_on_flush_maps_to_user_exception():
+    sender = RaisingOnSendSender(ServiceBusConnectionError(message="namespace unreachable"))
+    with pytest.raises(UserException):
+        # batch_size=1 forces a flush (send_messages) on the second message.
+        MessageSender(_sender(sender), batch_size=1, entity_name="q1").send(_messages("a", "b"))
+
+
+def test_broker_error_message_redacts_sas_key():
+    error = ServiceBusConnectionError(message="failed Endpoint=sb://x/;SharedAccessKey=SECRETKEY end")
+    with pytest.raises(UserException) as exc:
+        MessageSender(_sender(RaisingOnBatchSender(error)), batch_size=1000, entity_name="q1").send(_messages("a"))
+    assert "SECRETKEY" not in str(exc.value)
+    assert "SharedAccessKey=***" in str(exc.value)

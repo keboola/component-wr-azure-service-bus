@@ -10,6 +10,7 @@ the fields and validates them.
 
 import logging
 from enum import StrEnum
+from typing import Any
 
 from keboola.component.exceptions import UserException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -71,7 +72,7 @@ class Configuration(BaseModel):
     time_to_live_seconds: int | None = None
     message_properties: MessagePropertyMap = Field(default_factory=MessagePropertyMap)
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         try:
             super().__init__(**data)
         except ValidationError as e:
@@ -79,7 +80,7 @@ class Configuration(BaseModel):
             for err in e.errors():
                 loc = ".".join(str(part) for part in err["loc"]) if err["loc"] else "configuration"
                 messages.append(f"{loc}: {err['msg']}")
-            raise UserException(f"Validation Error: {', '.join(messages)}")
+            raise UserException(f"Validation Error: {', '.join(messages)}") from e
 
     @model_validator(mode="after")
     def _validate_body_mode(self):

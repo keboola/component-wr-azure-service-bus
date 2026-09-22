@@ -4,6 +4,7 @@ import os
 from unittest import mock
 
 import pytest
+from azure.servicebus.exceptions import ServiceBusConnectionError
 from keboola.component.exceptions import UserException
 
 import component as component_mod
@@ -26,11 +27,14 @@ class FakeBatch:
 
 
 class FakeSender:
-    def __init__(self):
+    def __init__(self, batch_error=None):
         self.sent = []
         self.closed = False
+        self.batch_error = batch_error
 
     def create_message_batch(self):
+        if self.batch_error is not None:
+            raise self.batch_error
         return FakeBatch()
 
     def send_messages(self, x):
@@ -42,10 +46,17 @@ class FakeSender:
     def close(self):
         self.closed = True
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
 
 class FakeClient:
-    def __init__(self):
-        self.sender = FakeSender()
+    def __init__(self, sender=None):
+        self.sender = sender or FakeSender()
         self.opened_queue = None
         self.opened_topic = None
 
@@ -64,9 +75,12 @@ class FakeClient:
         return False
 
 
-def _write_datadir(tmp_path, params, rows, headers=("a", "b"), with_table=True):
+def _write_datadir(tmp_path, params, rows, headers=("a", "b"), with_table=True, action=None):
     (tmp_path / "in" / "tables").mkdir(parents=True)
-    (tmp_path / "config.json").write_text(json.dumps({"parameters": params}))
+    config = {"parameters": params}
+    if action is not None:
+        config["action"] = action
+    (tmp_path / "config.json").write_text(json.dumps(config))
     if with_table:
         with open(tmp_path / "in" / "tables" / "input.csv", "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=list(headers))
@@ -112,8 +126,8 @@ def test_run_missing_input_table_raises(tmp_path):
         _run(tmp_path, BASE_PARAMS, [], with_table=False)
 
 
-def test_test_connection_opens_and_closes(tmp_path):
-    _write_datadir(tmp_path, BASE_PARAMS, [], with_table=False)
+def test_test_connection_opens_probes_and_closes(tmp_path):
+    _write_datadir(tmp_path, BASE_PARAMS, [], with_table=False, action="testConnection")
     fake_client = FakeClient()
     with (
         mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
@@ -121,5 +135,21 @@ def test_test_connection_opens_and_closes(tmp_path):
     ):
         result = Component().test_connection()
     assert fake_client.opened_queue == "q1"
-    assert fake_client.sender.closed is True
+    assert fake_client.sender.closed is True  # closed via the sender context manager
     assert "succeeded" in result.message.lower()
+
+
+def test_test_connection_failure_exits_with_redacted_message(tmp_path, capsys):
+    _write_datadir(tmp_path, BASE_PARAMS, [], with_table=False, action="testConnection")
+    # The forced link-open probe (create_message_batch) fails with a broker error carrying a SAS key.
+    error = ServiceBusConnectionError(message="down Endpoint=sb://x/;SharedAccessKey=SECRETKEY")
+    failing = FakeClient(sender=FakeSender(batch_error=error))
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=failing),
+        pytest.raises(SystemExit),  # sync-action failure -> exit(1)
+    ):
+        Component().test_connection()
+    err = capsys.readouterr().err
+    assert "SECRETKEY" not in err
+    assert "connect" in err.lower()

@@ -10,6 +10,7 @@ row-level mapping failure raises :class:`MessageMappingError` (exit 1).
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from azure.servicebus import ServiceBusMessage
 from keboola.component.exceptions import UserException
@@ -34,9 +35,9 @@ class MessageMappingError(UserException):
     """A row could not be mapped onto a ServiceBusMessage (user-fixable, exit 1)."""
 
 
-def build_message(row: dict, config: Configuration) -> ServiceBusMessage:
+def build_message(row: dict[str, str], config: Configuration) -> ServiceBusMessage:
     """Map a CSV DictReader row onto a ServiceBusMessage per the row configuration."""
-    kwargs: dict = {"content_type": config.content_type}
+    kwargs: dict[str, Any] = {"content_type": config.content_type}
 
     if config.time_to_live_seconds is not None:
         kwargs["time_to_live"] = timedelta(seconds=config.time_to_live_seconds)
@@ -46,7 +47,7 @@ def build_message(row: dict, config: Configuration) -> ServiceBusMessage:
     return ServiceBusMessage(_build_body(row, config), **kwargs)
 
 
-def _build_body(row: dict, config: Configuration) -> str:
+def _build_body(row: dict[str, str], config: Configuration) -> str:
     if config.mode == BodyMode.COLUMN_VALUE:
         value = row.get(config.column or "", "")
         try:
@@ -57,7 +58,7 @@ def _build_body(row: dict, config: Configuration) -> str:
     return json.dumps(row)
 
 
-def _apply_property_mappings(kwargs: dict, row: dict, props: MessagePropertyMap) -> None:
+def _apply_property_mappings(kwargs: dict[str, Any], row: dict[str, str], props: MessagePropertyMap) -> None:
     for field, attr in _SIMPLE_PROPS.items():
         column = getattr(props, field)
         if column and column in row:
@@ -74,11 +75,11 @@ def _apply_property_mappings(kwargs: dict, row: dict, props: MessagePropertyMap)
         )
 
 
-def _parse_application_properties(column: str, raw: str) -> dict:
+def _parse_application_properties(column: str, raw: str) -> dict[str, Any]:
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
-        raise MessageMappingError(f"Invalid JSON in application_properties column '{column}': {e}")
+        raise MessageMappingError(f"Invalid JSON in application_properties column '{column}': {e}") from e
     if not isinstance(parsed, dict):
         raise MessageMappingError(f"The application_properties column '{column}' must contain a JSON object.")
     return parsed
@@ -87,8 +88,10 @@ def _parse_application_properties(column: str, raw: str) -> dict:
 def _parse_scheduled_time(column: str, raw: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(raw)
-    except ValueError:
-        raise MessageMappingError(f"Invalid ISO-8601 timestamp in scheduled_enqueue_time column '{column}': '{raw}'.")
+    except ValueError as e:
+        raise MessageMappingError(
+            f"Invalid ISO-8601 timestamp in scheduled_enqueue_time column '{column}': '{raw}'."
+        ) from e
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)

@@ -1,6 +1,12 @@
 from unittest import mock
 
 import pytest
+from azure.servicebus.exceptions import (
+    MessagingEntityNotFoundError,
+    ServiceBusAuthenticationError,
+    ServiceBusConnectionError,
+    ServiceBusError,
+)
 from keboola.component.exceptions import UserException
 
 import client as client_mod
@@ -66,3 +72,26 @@ def test_bad_connection_string_redacts_key():
             client_mod.build_service_bus_client(cfg)
     assert "SECRET" not in str(exc.value)
     assert "SharedAccessKey=***" in str(exc.value)
+
+
+def test_to_user_exception_entity_not_found_names_entity():
+    exc = client_mod.to_user_exception(MessagingEntityNotFoundError(message="x"), "my-queue")
+    assert "my-queue" in str(exc)
+    assert "not found" in str(exc).lower()
+
+
+def test_to_user_exception_auth_failure():
+    exc = client_mod.to_user_exception(ServiceBusAuthenticationError(message="x"))
+    text = str(exc).lower()
+    assert "authentication" in text or "authorization" in text
+
+
+def test_to_user_exception_connection_failure():
+    exc = client_mod.to_user_exception(ServiceBusConnectionError(message="x"))
+    assert "connect" in str(exc).lower()
+
+
+def test_to_user_exception_redacts_sas_key():
+    exc = client_mod.to_user_exception(ServiceBusError(message="boom Endpoint=sb://x/;SharedAccessKey=SEKRIT"))
+    assert "SEKRIT" not in str(exc)
+    assert "SharedAccessKey=***" in str(exc)

@@ -12,12 +12,13 @@ import sys
 from collections.abc import Iterator
 
 from azure.servicebus import ServiceBusClient, ServiceBusMessage, ServiceBusSender
+from azure.servicebus.exceptions import ServiceBusError
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.dao import TableDefinition
 from keboola.component.exceptions import UserException
 from keboola.component.sync_actions import MessageType, ValidationResult
 
-from client import build_service_bus_client
+from client import build_service_bus_client, to_user_exception
 from configuration import Configuration, DestinationType
 from message_builder import build_message
 from sender import MessageSender
@@ -28,15 +29,15 @@ logger = logging.getLogger(__name__)
 class Component(ComponentBase):
     """Reads a Storage input table per config row and sends each row to Azure Service Bus."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-    def run(self):
+    def run(self) -> None:
         """Send every row of the row's single input table to the configured entity."""
         config = Configuration(**self.configuration.parameters)
         table = self._resolve_input_table()
         with build_service_bus_client(config) as client:
-            message_sender = MessageSender(self._open_sender(client, config), config.batch_size)
+            message_sender = MessageSender(self._open_sender(client, config), config.batch_size, config.entity_name)
             try:
                 sent = message_sender.send(self._iter_messages(table, config))
             finally:
@@ -45,10 +46,13 @@ class Component(ComponentBase):
 
     @sync_action("testConnection")
     def test_connection(self) -> ValidationResult:
-        """Build the client for the configured auth method, open a sender to the entity, and close it."""
+        """Open a sender for the configured auth method and force the AMQP link open as an auth/connectivity probe."""
         config = Configuration(**self.configuration.parameters)
-        with build_service_bus_client(config) as client:
-            self._open_sender(client, config).close()
+        try:
+            with build_service_bus_client(config) as client, self._open_sender(client, config) as sender:
+                sender.create_message_batch()  # forces the real connection + auth round-trip
+        except ServiceBusError as e:
+            raise to_user_exception(e, config.entity_name) from e
         return ValidationResult("Connection to Azure Service Bus succeeded.", MessageType.SUCCESS)
 
     def _resolve_input_table(self) -> TableDefinition:
@@ -61,9 +65,12 @@ class Component(ComponentBase):
 
     @staticmethod
     def _open_sender(client: ServiceBusClient, config: Configuration) -> ServiceBusSender:
-        if config.destination_type == DestinationType.TOPIC:
-            return client.get_topic_sender(topic_name=config.entity_name)
-        return client.get_queue_sender(queue_name=config.entity_name)
+        try:
+            if config.destination_type == DestinationType.TOPIC:
+                return client.get_topic_sender(topic_name=config.entity_name)
+            return client.get_queue_sender(queue_name=config.entity_name)
+        except ServiceBusError as e:
+            raise to_user_exception(e, config.entity_name) from e
 
     @staticmethod
     def _iter_messages(table: TableDefinition, config: Configuration) -> Iterator[ServiceBusMessage]:
@@ -80,8 +87,8 @@ if __name__ == "__main__":
         comp = Component()
         # this triggers the run method by default and is controlled by the configuration.action parameter
         comp.execute_action()
-    except UserException:
-        logger.exception("Component failed with a user error")
+    except UserException as e:
+        logger.error(str(e))
         sys.exit(1)
     except Exception:
         logger.exception("Component failed with an unexpected error")

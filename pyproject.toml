@@ -4,6 +4,8 @@ dynamic = ["version"]
 readme = "README.md"
 requires-python = "~=3.14.0"
 dependencies = [
+    # capped <7.15: 7.15.0 removes the uamqp_transport parameter; this component is
+    # pyamqp-only (see docs/superpowers/specs/2026-09-22-wr-azure-service-bus-design.md, section 3).
     "azure-servicebus>=7.14,<7.15",
     "azure-identity>=1.19,<2",
     "keboola-component>=1.10.0",
@@ -23,7 +25,7 @@ dev = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py314"
+# target-version is inferred from project.requires-python (~=3.14.0).
 # Keep ruff on source only; ruff 0.16 reformats Python in Markdown, and docs/
 # holds authored planning/spec artifacts that must not be reflowed.
 extend-exclude = ["docs"]

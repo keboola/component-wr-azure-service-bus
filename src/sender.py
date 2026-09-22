@@ -15,8 +15,10 @@ import logging
 from collections.abc import Iterable
 
 from azure.servicebus import ServiceBusMessage, ServiceBusMessageBatch, ServiceBusSender
-from azure.servicebus.exceptions import MessageSizeExceededError
+from azure.servicebus.exceptions import MessageSizeExceededError, ServiceBusError
 from keboola.component.exceptions import UserException
+
+from client import to_user_exception
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +26,20 @@ logger = logging.getLogger(__name__)
 class MessageSender:
     """Wrap one ServiceBusSender with size-and-count batching plus close-safety."""
 
-    def __init__(self, sender: ServiceBusSender, batch_size: int):
+    def __init__(self, sender: ServiceBusSender, batch_size: int, entity_name: str = ""):
         self._sender = sender
         self._batch_size = batch_size
+        self._entity_name = entity_name
 
     def send(self, messages: Iterable[ServiceBusMessage]) -> int:
         """Send every message, batching by size and count; return the number sent."""
+        try:
+            return self._send_all(messages)
+        except ServiceBusError as e:
+            # Auth failure / missing entity / connection loss on a flush -> user-fixable (G3).
+            raise to_user_exception(e, self._entity_name) from e
+
+    def _send_all(self, messages: Iterable[ServiceBusMessage]) -> int:
         count = 0
         batch = self._sender.create_message_batch()
         batch_count = 0
@@ -73,11 +83,11 @@ class MessageSender:
     def _send_single(self, message: ServiceBusMessage) -> None:
         try:
             self._sender.send_messages(message)
-        except MessageSizeExceededError:
+        except MessageSizeExceededError as e:
             raise UserException(
                 "A message exceeds the target entity's single-message size limit and cannot be sent. "
                 "Reduce the row size, or target a Premium-tier entity with a higher cap."
-            )
+            ) from e
 
     def close(self) -> None:
         """Close the sender, swallowing a post-delivery close error as a warning (G4)."""
