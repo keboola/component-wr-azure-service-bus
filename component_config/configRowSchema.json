@@ -47,7 +47,8 @@
         "enum_titles": [
           "Whole row as JSON",
           "Single column value"
-        ]
+        ],
+        "tooltip": "Whole row as JSON — the entire input row is serialized to one JSON object as the message body (content type is always application/json). Single column value — the message body is the raw value of the chosen column; set its Content Type below."
       },
       "default": "row_as_json",
       "propertyOrder": 30
@@ -89,7 +90,10 @@
           "XML (application)",
           "Binary (octet-stream)"
         ],
-        "creatable": true
+        "creatable": true,
+        "dependencies": {
+          "mode": "column_value"
+        }
       },
       "default": "application/json",
       "propertyOrder": 50
@@ -101,13 +105,6 @@
       "minimum": 1,
       "default": 1000,
       "propertyOrder": 60
-    },
-    "time_to_live_seconds": {
-      "type": "integer",
-      "title": "Time To Live (Seconds)",
-      "description": "Per-message expiration; leave blank for the queue/topic default",
-      "minimum": 1,
-      "propertyOrder": 70
     },
     "message_properties": {
       "type": "object",

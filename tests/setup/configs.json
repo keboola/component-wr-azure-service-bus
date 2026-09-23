@@ -366,5 +366,50 @@
         }
       }
     }
+  },
+  {
+    "name": "18_run_row_as_json_content_type_override_ignored",
+    "description": "row_as_json forces content_type to application/json even when config sets a custom value.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json",
+        "content_type": "text/plain"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "19_run_column_value_custom_content_type",
+    "description": "column_value mode applies a custom configured content_type onto every sent message.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "payload-queue",
+        "mode": "column_value",
+        "column": "payload",
+        "content_type": "text/plain"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.payload", "destination": "payload.csv"}
+          ]
+        }
+      }
+    }
   }
 ]

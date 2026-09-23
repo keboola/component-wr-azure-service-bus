@@ -58,8 +58,13 @@ Each row sends one input table to one topic or queue:
   reply-to, reply-to session ID, scheduled enqueue time (ISO-8601), and custom
   application properties (a JSON object). A configured column that is missing from
   the input table header fails the run with a clear error.
-- **Delivery** — batch size, content type (default `application/json`), and an
-  optional per-message time-to-live in seconds.
+- **Content type** — set per message. In `row_as_json` mode the body is always a
+  JSON object, so the content type is always `application/json`. In `column_value`
+  mode the content type is configurable (default `application/json`), since the
+  column's raw value may be any MIME type.
+- **Delivery** — batch size. The writer does not set a per-message time-to-live;
+  message expiry follows the destination queue's or topic's own configured default
+  TTL (`default_message_time_to_live`).
 
 Test Connection
 ---------------

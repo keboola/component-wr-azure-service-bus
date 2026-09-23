@@ -238,3 +238,20 @@ def test_17_run_topic_column_value_with_properties(mock_service_bus, tmp_path, m
     assert cap.messages[0].session_id == "sess-1"
     assert cap.messages[1].subject == "order-updated"
     assert cap.messages[1].session_id == "sess-2"
+
+
+# --- Run: mode-aware content_type -----------------------------------------------
+
+
+def test_18_run_row_as_json_content_type_override_ignored(mock_service_bus, tmp_path, monkeypatch):
+    run_case("18_run_row_as_json_content_type_override_ignored", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert len(cap.messages) == 3
+    assert all(m.content_type == "application/json" for m in cap.messages)
+
+
+def test_19_run_column_value_custom_content_type(mock_service_bus, tmp_path, monkeypatch):
+    run_case("19_run_column_value_custom_content_type", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert len(cap.messages) == 2
+    assert all(m.content_type == "text/plain" for m in cap.messages)

@@ -68,7 +68,6 @@ class Configuration(BaseModel):
     column: str | None = None
     content_type: str = "application/json"
     batch_size: int = Field(default=1000, ge=1)
-    time_to_live_seconds: int | None = Field(default=None, ge=1)
     message_properties: MessagePropertyMap = Field(default_factory=MessagePropertyMap)
 
     def __init__(self, **data: Any) -> None:

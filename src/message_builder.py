@@ -9,7 +9,7 @@ row-level mapping failure raises :class:`MessageMappingError` (exit 1).
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from azure.servicebus import ServiceBusMessage
@@ -58,10 +58,11 @@ def required_columns(config: Configuration) -> list[str]:
 
 def build_message(row: dict[str, str], config: Configuration) -> ServiceBusMessage:
     """Map a CSV DictReader row onto a ServiceBusMessage per the row configuration."""
-    kwargs: dict[str, Any] = {"content_type": config.content_type}
-
-    if config.time_to_live_seconds is not None:
-        kwargs["time_to_live"] = timedelta(seconds=config.time_to_live_seconds)
+    # row_as_json always serializes the body with json.dumps(), so its content type is
+    # always application/json -- ignore any stale/leftover config value. content_type
+    # only genuinely varies in column_value mode.
+    content_type = "application/json" if config.mode == BodyMode.ROW_AS_JSON else config.content_type
+    kwargs: dict[str, Any] = {"content_type": content_type}
 
     _apply_property_mappings(kwargs, row, config.message_properties)
 

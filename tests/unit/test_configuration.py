@@ -62,12 +62,6 @@ def test_batch_size_min():
         Configuration(**{**BASE, "batch_size": 0})
 
 
-def test_time_to_live_seconds_min():
-    # I1: a non-positive TTL is rejected (mirrors batch_size ge=1).
-    with pytest.raises(UserException):
-        Configuration(**{**BASE, "time_to_live_seconds": 0})
-
-
 def test_message_properties_parsed():
     c = Configuration(**{**BASE, "message_properties": {"session_id_column": "sid", "message_id_column": "mid"}})
     assert c.message_properties.session_id_column == "sid"

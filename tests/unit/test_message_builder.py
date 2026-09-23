@@ -86,12 +86,19 @@ def test_application_properties_non_object_raises():
         build_message({"props": "[1, 2, 3]"}, cfg)
 
 
-def test_ttl_set_as_timedelta():
-    cfg = Configuration(**{**BASE, "time_to_live_seconds": 60})
+def test_row_as_json_content_type_override_ignored():
+    # row_as_json always serializes with json.dumps(), so content_type is forced to
+    # application/json even when config sets a stale/custom value.
+    cfg = Configuration(**{**BASE, "content_type": "text/plain"})
     msg = build_message({"a": "1"}, cfg)
-    ttl = msg.time_to_live
-    assert ttl is not None
-    assert ttl.total_seconds() == 60
+    assert msg.content_type == "application/json"
+
+
+def test_column_value_custom_content_type_applied():
+    # content_type only genuinely varies in column_value mode.
+    cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload", "content_type": "text/plain"})
+    msg = build_message({"payload": "raw text"}, cfg)
+    assert msg.content_type == "text/plain"
 
 
 def test_scheduled_enqueue_time_parsed_to_utc():
