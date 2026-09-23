@@ -166,6 +166,9 @@ def test_11_run_empty_input(mock_service_bus, tmp_path, monkeypatch):
     assert cap.messages == []
     assert cap.batches == []
     assert cap.closed is True
+    # Lazy-batch behavior (commit e871396): create_message_batch() is the first real
+    # broker round-trip, so zero input rows must never open the AMQP link.
+    assert cap.batches_created == 0
 
 
 # --- Run: second auth method (service principal) -------------------------------
