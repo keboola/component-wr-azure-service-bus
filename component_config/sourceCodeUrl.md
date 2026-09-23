@@ -1,1 +1,1 @@
-https://github.com/keboola/component-wr-azure-service-bus/blob/main/
+https://github.com/keboola/component-wr-azure-service-bus
