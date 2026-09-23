@@ -22,6 +22,15 @@ def test_row_as_json_body():
     assert msg.content_type == "application/json"
 
 
+def test_row_as_json_keeps_non_ascii_raw():
+    # ensure_ascii=False -> accented text stays raw UTF-8 in the body, not \uXXXX escapes.
+    msg = build_message({"name": "Košík"}, Configuration(**BASE))
+    body = str(msg)
+    assert "Košík" in body
+    assert "\\u" not in body
+    assert json.loads(body) == {"name": "Košík"}
+
+
 def test_column_value_json_string_sent_unchanged():
     cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
     msg = build_message({"payload": '{"k": 1}'}, cfg)
@@ -93,6 +102,14 @@ def test_application_properties_non_object_raises():
         build_message({"props": "[1, 2, 3]"}, cfg)
 
 
+def test_application_properties_nested_value_raises():
+    # Service Bus application properties accept only scalar values; a nested object/array
+    # must be rejected up front with a clear error, not deep inside the SDK at send time.
+    cfg = Configuration(**{**BASE, "message_properties": {"application_properties_column": "props"}})
+    with pytest.raises(UserException):
+        build_message({"props": '{"meta": {"nested": 1}}'}, cfg)
+
+
 def test_row_as_json_content_type_override_ignored():
     # row_as_json always serializes with json.dumps(), so content_type is forced to
     # application/json even when config sets a stale/custom value.
@@ -141,6 +158,29 @@ def test_ragged_row_column_value_none_is_empty():
     cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
     msg = build_message(cast("dict[str, str]", {"payload": None}), cfg)
     assert str(msg) == ""
+
+
+# --- Blank cell in a mapped property column -> skip that property for the row ----
+
+
+def test_blank_simple_property_cell_is_skipped():
+    cfg = Configuration(**{**BASE, "message_properties": {"subject_column": "subj"}})
+    msg = build_message({"subj": ""}, cfg)
+    assert msg.subject is None  # blank cell -> property left unset, not set to ""
+
+
+def test_blank_application_properties_cell_is_skipped():
+    # A heterogeneous table where only some rows carry properties must not fail on the
+    # blank rows: a blank application_properties cell skips the property (no JSON parse).
+    cfg = Configuration(**{**BASE, "message_properties": {"application_properties_column": "props"}})
+    msg = build_message({"a": "1", "props": ""}, cfg)
+    assert msg.application_properties is None
+
+
+def test_blank_scheduled_enqueue_time_cell_is_skipped():
+    cfg = Configuration(**{**BASE, "message_properties": {"scheduled_enqueue_time_column": "when"}})
+    msg = build_message({"a": "1", "when": ""}, cfg)
+    assert msg.scheduled_enqueue_time_utc is None
 
 
 # --- B3: required_columns collects every referenced input column ----------------

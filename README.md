@@ -50,7 +50,8 @@ Each row sends one input table to one topic or queue:
 - **Destination type & name** — `topic` or `queue`, plus the entity name. The
   entity must already exist in the namespace.
 - **Message body** — one of:
-    - `row_as_json` — the whole input row serialized as a JSON object.
+    - `row_as_json` — the whole input row serialized as a UTF-8 JSON object
+      (non-ASCII text is kept as-is, not escaped).
     - `column_value` — the chosen column's value, sent as the message body
       exactly as-is (no JSON parsing or wrapping). Set **Content Type** to match
       the payload (e.g. `text/plain` for plain text, `application/json` if the
@@ -58,8 +59,15 @@ Each row sends one input table to one topic or queue:
 - **Message properties** — optionally map input columns onto Service Bus broker
   properties: message ID, session ID, subject, correlation ID, partition key,
   reply-to, reply-to session ID, scheduled enqueue time (ISO-8601), and custom
-  application properties (a JSON object). A configured column that is missing from
-  the input table header fails the run with a clear error.
+  application properties (a JSON object whose values must be scalars — string,
+  number, boolean, or null). A configured column that is missing from the input
+  table header fails the run with a clear error. A **blank cell** in a mapped
+  column simply skips that property for that row, so a table where only some rows
+  carry a property is fine.
+    - Mapping a stable **Message ID** column lets Azure **duplicate detection**
+      (if enabled on the entity) discard repeats — so re-running a failed job
+      does not deliver the already-sent messages twice. Without it the broker
+      assigns a fresh random ID to every message and cannot deduplicate.
 - **Content type** — set per message. In `row_as_json` mode the body is always a
   JSON object, so the content type is always `application/json`. In `column_value`
   mode the content type is configurable (default `application/json`), since the

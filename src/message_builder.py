@@ -77,24 +77,30 @@ def _build_body(row: dict[str, str], config: Configuration) -> str:
         # column value is sent as-is -- no JSON parsing or wrapping -- so the sender
         # is responsible for setting a content_type that matches the payload.
         return row.get(config.column or "") or ""
-    return json.dumps(row)
+    # ensure_ascii=False keeps non-ASCII text (e.g. accented characters) as raw UTF-8
+    # in the JSON body rather than \uXXXX escapes; the SDK encodes the str as UTF-8.
+    return json.dumps(row, ensure_ascii=False)
 
 
 def _apply_property_mappings(kwargs: dict[str, Any], row: dict[str, str], props: MessagePropertyMap) -> None:
+    # A blank cell ("") in a mapped column means "do not set this property for this row",
+    # so a heterogeneous table where only some rows carry a property does not fail on the
+    # blank rows. A structurally-missing cell (None, from a ragged row) is handled per
+    # property below.
     for field, attr in _SIMPLE_PROPS.items():
         column = getattr(props, field)
-        if column and column in row:
+        if column and row.get(column):  # skips a missing (None) or blank ("") cell
             kwargs[attr] = row[column]
 
-    if props.application_properties_column and props.application_properties_column in row:
-        kwargs["application_properties"] = _parse_application_properties(
-            props.application_properties_column, row[props.application_properties_column]
-        )
+    column = props.application_properties_column
+    if column and column in row and row[column] != "":
+        # A blank cell skips the property; a ragged-row None or a present-but-invalid
+        # value still flows to the parser, which raises a user-facing MessageMappingError.
+        kwargs["application_properties"] = _parse_application_properties(column, row[column])
 
-    if props.scheduled_enqueue_time_column and props.scheduled_enqueue_time_column in row:
-        kwargs["scheduled_enqueue_time_utc"] = _parse_scheduled_time(
-            props.scheduled_enqueue_time_column, row[props.scheduled_enqueue_time_column]
-        )
+    column = props.scheduled_enqueue_time_column
+    if column and column in row and row[column] != "":
+        kwargs["scheduled_enqueue_time_utc"] = _parse_scheduled_time(column, row[column])
 
 
 def _parse_application_properties(column: str, raw: str) -> dict[str, Any]:
@@ -106,6 +112,15 @@ def _parse_application_properties(column: str, raw: str) -> dict[str, Any]:
         raise MessageMappingError(f"Invalid JSON in application_properties column '{column}': {e}") from e
     if not isinstance(parsed, dict):
         raise MessageMappingError(f"The application_properties column '{column}' must contain a JSON object.")
+    # Service Bus application properties accept only scalar AMQP values. A nested object
+    # or array would raise an opaque error deep in the SDK at send time; reject it here
+    # with a clear, row-level message instead.
+    for key, value in parsed.items():
+        if isinstance(value, dict | list):
+            raise MessageMappingError(
+                f"application_properties column '{column}': the value for key '{key}' must be a scalar "
+                f"(string, number, boolean, or null); nested objects and arrays are not supported."
+            )
     return parsed
 
 
