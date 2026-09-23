@@ -56,6 +56,10 @@
       "type": "string",
       "title": "Body Column",
       "description": "Input column whose value becomes the message body",
+      "watch": {
+        "columns": "_metadata_.table.columns"
+      },
+      "enumSource": "columns",
       "options": {
         "dependencies": {
           "mode": "column_value"
@@ -67,6 +71,26 @@
       "type": "string",
       "title": "Content Type",
       "description": "MIME type set on each message",
+      "format": "select",
+      "enum": [
+        "application/json",
+        "text/plain",
+        "text/csv",
+        "text/xml",
+        "application/xml",
+        "application/octet-stream"
+      ],
+      "options": {
+        "enum_titles": [
+          "JSON",
+          "Plain Text",
+          "CSV",
+          "XML (text)",
+          "XML (application)",
+          "Binary (octet-stream)"
+        ],
+        "creatable": true
+      },
       "default": "application/json",
       "propertyOrder": 50
     },
@@ -88,7 +112,7 @@
     "message_properties": {
       "type": "object",
       "title": "Message Properties",
-      "format": "grid",
+      "format": "grid-strict",
       "options": {
         "tooltip": "Optional — map input columns onto Service Bus broker message properties. Leave a field blank to skip that property."
       },
@@ -98,14 +122,26 @@
           "type": "string",
           "title": "Message ID Column",
           "description": "Input column holding the message's unique ID",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
+          "options": {
+            "grid_columns": 6
+          },
           "propertyOrder": 1
         },
         "session_id_column": {
           "type": "string",
           "title": "Session ID Column",
           "description": "Input column holding the session ID",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
           "options": {
-            "tooltip": "Required on the destination if it is a session-enabled queue or topic subscription."
+            "tooltip": "Required on the destination if it is a session-enabled queue or topic subscription.",
+            "grid_columns": 6
           },
           "propertyOrder": 2
         },
@@ -113,20 +149,39 @@
           "type": "string",
           "title": "Subject Column",
           "description": "Input column holding the message subject (label)",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
+          "options": {
+            "grid_columns": 6
+          },
           "propertyOrder": 3
         },
         "correlation_id_column": {
           "type": "string",
           "title": "Correlation ID Column",
           "description": "Input column holding the correlation ID",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
+          "options": {
+            "grid_columns": 6
+          },
           "propertyOrder": 4
         },
         "partition_key_column": {
           "type": "string",
           "title": "Partition Key Column",
           "description": "Input column holding the partition key",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
           "options": {
-            "tooltip": "Only used on a partitioned entity; must match the session ID when the entity also requires sessions."
+            "tooltip": "Only used on a partitioned entity; must match the session ID when the entity also requires sessions.",
+            "grid_columns": 6
           },
           "propertyOrder": 5
         },
@@ -134,14 +189,26 @@
           "type": "string",
           "title": "Scheduled Enqueue Time Column",
           "description": "Input column holding an ISO 8601 timestamp to delay delivery",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
+          "options": {
+            "grid_columns": 6
+          },
           "propertyOrder": 6
         },
         "application_properties_column": {
           "type": "string",
           "title": "Application Properties Column",
           "description": "Input column holding a JSON object of custom properties",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
           "options": {
-            "tooltip": "The column's value must parse as a JSON object, e.g. `{\"source\": \"crm\"}` — each key becomes a custom application property on the message."
+            "tooltip": "The column's value must parse as a JSON object, e.g. `{\"source\": \"crm\"}` — each key becomes a custom application property on the message.",
+            "grid_columns": 6
           },
           "propertyOrder": 7
         },
@@ -149,12 +216,26 @@
           "type": "string",
           "title": "Reply To Column",
           "description": "Input column holding the reply-to address",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
+          "options": {
+            "grid_columns": 6
+          },
           "propertyOrder": 8
         },
         "reply_to_session_id_column": {
           "type": "string",
           "title": "Reply To Session ID Column",
           "description": "Input column holding the reply-to session ID",
+          "watch": {
+            "columns": "_metadata_.table.columns"
+          },
+          "enumSource": "columns",
+          "options": {
+            "grid_columns": 6
+          },
           "propertyOrder": 9
         }
       }

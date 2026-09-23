@@ -1,1 +1,1 @@
-["genericDockerUI", "genericDockerUI-rows"]
+["genericDockerUI", "genericDockerUI-rows", "genericDockerUI-tableInput", "genericDockerUI-simpleTableInput"]
