@@ -106,12 +106,23 @@
       "default": 1000,
       "propertyOrder": 60
     },
+    "set_message_properties": {
+      "type": "boolean",
+      "title": "Set message properties",
+      "format": "checkbox",
+      "default": false,
+      "description": "Optional. Enable to map input columns onto Service Bus broker message properties (message ID, session ID, subject, etc.). Leave off if you only need the message body — none of these are required to send a message.",
+      "propertyOrder": 70
+    },
     "message_properties": {
       "type": "object",
       "title": "Message Properties",
       "format": "grid-strict",
       "options": {
-        "tooltip": "Optional — map input columns onto Service Bus broker message properties. Leave a field blank to skip that property."
+        "tooltip": "Every field here is optional — map an input column onto a broker message property, or leave it blank to skip that property.",
+        "dependencies": {
+          "set_message_properties": true
+        }
       },
       "propertyOrder": 80,
       "properties": {
