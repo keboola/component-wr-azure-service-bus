@@ -1,10 +1,11 @@
 """Build a ServiceBusMessage from one input-table row.
 
 The body is produced per ``mode`` (``row_as_json`` serialises the whole row;
-``column_value`` takes one column, passing it through when it is valid JSON and
-otherwise wrapping it as ``{"data": <raw>}``). Configured ``message_properties``
-column mappings are applied onto the matching ServiceBusMessage attributes; a
-row-level mapping failure raises :class:`MessageMappingError` (exit 1).
+``column_value`` sends the chosen column's value as the message body exactly
+as read from the input, with no JSON parsing or wrapping). Configured
+``message_properties`` column mappings are applied onto the matching
+ServiceBusMessage attributes; a row-level mapping failure raises
+:class:`MessageMappingError` (exit 1).
 """
 
 import json
@@ -72,13 +73,10 @@ def build_message(row: dict[str, str], config: Configuration) -> ServiceBusMessa
 def _build_body(row: dict[str, str], config: Configuration) -> str:
     if config.mode == BodyMode.COLUMN_VALUE:
         # A ragged row (fewer cells than the header) leaves DictReader filling the
-        # trailing column with None; treat a missing cell as an empty value.
-        value = row.get(config.column or "") or ""
-        try:
-            json.loads(value)
-        except json.JSONDecodeError:
-            return json.dumps({"data": value})
-        return value
+        # trailing column with None; treat a missing cell as an empty value. The raw
+        # column value is sent as-is -- no JSON parsing or wrapping -- so the sender
+        # is responsible for setting a content_type that matches the payload.
+        return row.get(config.column or "") or ""
     return json.dumps(row)
 
 

@@ -69,7 +69,7 @@
   },
   {
     "name": "05_run_column_value",
-    "description": "column_value body: JSON cell is passed through, non-JSON cell is wrapped as {\"data\": ...}.",
+    "description": "column_value body: the raw column value is sent as-is, whether or not it looks like JSON.",
     "config": {
       "action": "run",
       "parameters": {

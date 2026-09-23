@@ -22,16 +22,23 @@ def test_row_as_json_body():
     assert msg.content_type == "application/json"
 
 
-def test_column_value_json_decoded():
+def test_column_value_json_string_sent_unchanged():
     cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
     msg = build_message({"payload": '{"k": 1}'}, cfg)
-    assert json.loads(str(msg)) == {"k": 1}
+    assert str(msg) == '{"k": 1}'
 
 
-def test_column_value_wraps_non_json():
+def test_column_value_non_json_scalar_sent_raw():
     cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
     msg = build_message({"payload": "raw text"}, cfg)
-    assert json.loads(str(msg)) == {"data": "raw text"}
+    assert str(msg) == "raw text"
+
+
+def test_column_value_empty_string_sent_raw():
+    # An empty cell is not parsed or coerced; it goes out as an empty body untouched.
+    cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
+    msg = build_message({"payload": ""}, cfg)
+    assert str(msg) == ""
 
 
 def test_property_mappings():
@@ -129,11 +136,11 @@ def test_ragged_row_scheduled_time_none_raises():
         build_message(cast("dict[str, str]", {"when": None}), cfg)
 
 
-def test_ragged_row_column_value_none_wraps_empty():
+def test_ragged_row_column_value_none_is_empty():
     # column_value body with a None cell must not crash; a missing cell is an empty value.
     cfg = Configuration(**{**BASE, "mode": "column_value", "column": "payload"})
     msg = build_message(cast("dict[str, str]", {"payload": None}), cfg)
-    assert json.loads(str(msg)) == {"data": ""}
+    assert str(msg) == ""
 
 
 # --- B3: required_columns collects every referenced input column ----------------

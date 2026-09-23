@@ -51,8 +51,10 @@ Each row sends one input table to one topic or queue:
   entity must already exist in the namespace.
 - **Message body** — one of:
     - `row_as_json` — the whole input row serialized as a JSON object.
-    - `column_value` — the value of a single named column, passed through when it
-      is valid JSON and otherwise wrapped as `{"data": <raw value>}`.
+    - `column_value` — the chosen column's value, sent as the message body
+      exactly as-is (no JSON parsing or wrapping). Set **Content Type** to match
+      the payload (e.g. `text/plain` for plain text, `application/json` if the
+      column already holds a JSON string).
 - **Message properties** — optionally map input columns onto Service Bus broker
   properties: message ID, session ID, subject, correlation ID, partition key,
   reply-to, reply-to session ID, scheduled enqueue time (ISO-8601), and custom

@@ -46,7 +46,7 @@ def run_case(case_name: str, tmp_path: Path, monkeypatch) -> None:
 
 
 def _bodies(capture) -> list:
-    return [json.loads(str(m)) for m in capture.messages]
+    return [str(m) for m in capture.messages]
 
 
 # --- Sync action: testConnection (success + failure) ---------------------------
@@ -80,7 +80,7 @@ def test_03_run_queue_row_as_json(mock_service_bus, tmp_path, monkeypatch):
     assert cap.opened_topic is None
     assert len(cap.messages) == 3
     assert cap.closed is True
-    assert _bodies(cap)[0] == {"id": "1", "name": "alpha", "amount": "10"}
+    assert json.loads(_bodies(cap)[0]) == {"id": "1", "name": "alpha", "amount": "10"}
 
 
 def test_04_run_topic_row_as_json(mock_service_bus, tmp_path, monkeypatch):
@@ -96,8 +96,8 @@ def test_05_run_column_value(mock_service_bus, tmp_path, monkeypatch):
     cap = mock_service_bus
     bodies = _bodies(cap)
     assert len(bodies) == 2
-    assert bodies[0] == {"k": 1}  # valid JSON passed through
-    assert bodies[1] == {"data": "raw text"}  # non-JSON wrapped
+    assert bodies[0] == '{"k": 1}'  # JSON-looking cell sent unchanged, not re-parsed
+    assert bodies[1] == "raw text"  # non-JSON cell sent raw, no wrapping
 
 
 # --- Run: message property mappings --------------------------------------------
@@ -236,7 +236,7 @@ def test_17_run_topic_column_value_with_properties(mock_service_bus, tmp_path, m
     assert cap.opened_topic == "alerts-topic"
     assert cap.opened_queue is None
     bodies = _bodies(cap)
-    assert bodies == [{"k": 1}, {"data": "raw text"}]  # valid JSON passed through, non-JSON wrapped
+    assert bodies == ['{"k": 1}', "raw text"]  # both cells sent raw, unchanged
     assert cap.messages[0].subject == "order-created"
     assert cap.messages[0].session_id == "sess-1"
     assert cap.messages[1].subject == "order-updated"
