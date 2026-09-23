@@ -340,5 +340,31 @@
         }
       }
     }
+  },
+  {
+    "name": "17_run_topic_column_value_with_properties",
+    "description": "column_value body on a topic (get_topic_sender), with subject/session_id property mappings applied.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "topic",
+        "entity_name": "alerts-topic",
+        "mode": "column_value",
+        "column": "payload",
+        "message_properties": {
+          "subject_column": "subj",
+          "session_id_column": "sid"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.topic_payload", "destination": "topic_payload.csv"}
+          ]
+        }
+      }
+    }
   }
 ]

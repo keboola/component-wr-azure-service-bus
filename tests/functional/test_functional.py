@@ -222,3 +222,19 @@ def test_16_run_ragged_row(mock_service_bus, tmp_path, monkeypatch, capsys):
     assert exc.value.code == 1  # None cell -> exit-1 UserException, not exit-2 TypeError
     combined = capsys.readouterr()
     assert "application_properties" in (combined.out + combined.err).lower()
+
+
+# --- Run: topic + column_value + properties (combined coverage) ----------------
+
+
+def test_17_run_topic_column_value_with_properties(mock_service_bus, tmp_path, monkeypatch):
+    run_case("17_run_topic_column_value_with_properties", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert cap.opened_topic == "alerts-topic"
+    assert cap.opened_queue is None
+    bodies = _bodies(cap)
+    assert bodies == [{"k": 1}, {"data": "raw text"}]  # valid JSON passed through, non-JSON wrapped
+    assert cap.messages[0].subject == "order-created"
+    assert cap.messages[0].session_id == "sess-1"
+    assert cap.messages[1].subject == "order-updated"
+    assert cap.messages[1].session_id == "sess-2"
