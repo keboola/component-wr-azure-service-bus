@@ -8,7 +8,7 @@ the entity's single-message cap and fails the row (:class:`UserException`).
 
 The sender is injected (``ServiceBusSender``), so the Azure SDK boundary is
 mockable in tests with a duck-typed fake -- Service Bus is AMQP, not HTTP, so
-the send path cannot be recorded with vcrpy (see spec S7).
+the send path cannot be recorded with vcrpy.
 """
 
 import logging

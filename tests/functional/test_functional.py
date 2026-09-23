@@ -6,7 +6,7 @@ and runs the component end-to-end via ``runpy.run_path(..., run_name="__main__")
 -- exercising the real ``__main__`` exit-code guard -- against the mocked Azure
 SDK provided by the autouse ``mock_service_bus`` fixture (see conftest.py). No
 network is touched and no cassettes are recorded (the send path is AMQP, not
-HTTP; see the spec section 7 finding).
+HTTP, so vcrpy cannot record it).
 """
 
 import json

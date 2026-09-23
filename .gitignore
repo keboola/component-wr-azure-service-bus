@@ -15,12 +15,3 @@ venv
 
 # vcr datadirtesting
 secrets.json
-
-# Local build aids — never commit/publish.
-# docs/factory-prep/ holds CFTL-784 prep incl. copyrighted reference extractor source
-# and customer-identifying ticket data. Keep it local (like the lifecycle tracker).
-docs/factory-prep/
-docs/superpowers/*-lifecycle.md
-# Phase-2 research studied the customer's donated extractor; keep it local. Its
-# scrubbed substance lands in the committed Phase-3 spec (docs/superpowers/specs/).
-docs/superpowers/research/
