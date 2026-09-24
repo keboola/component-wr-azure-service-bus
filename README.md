@@ -1,58 +1,99 @@
-wr-azure-service-bus
-=============
+Azure Service Bus Writer
+========================
 
-Description
+Sends each row of a Keboola Storage table as a message to an Azure Service Bus
+**topic** or **queue**.
 
 **Table of Contents:**
 
 [TOC]
 
-Functionality Notes
-===================
+Functionality
+=============
+
+The writer reads one input table per configuration row and publishes every row
+as a message to the configured Service Bus entity. Messages are sent in batches
+over the AMQP protocol. The target topic or queue must already exist in the
+namespace — the writer does not create it.
+
+Configuration is **row-based**: the connection to the namespace is set once at the
+configuration level, and each row maps one input table to one destination entity
+with its own body, property, and delivery settings.
 
 Prerequisites
 =============
 
-Ensure you have the necessary API token, register the application, etc.
+- An Azure Service Bus namespace with the target **topic** or **queue** already
+  created.
+- Credentials that grant **Send** rights on the entity, provided through one of
+  the supported authentication methods below.
 
-Features
-========
+Authentication
+==============
 
-| **Feature**             | **Description**                               |
-|-------------------------|-----------------------------------------------|
-| Generic UI Form         | Dynamic UI form for easy configuration.       |
-| Row-Based Configuration | Allows structuring the configuration in rows. |
-| OAuth                   | OAuth authentication enabled.                 |
-| Incremental Loading     | Fetch data in new increments.                 |
-| Backfill Mode           | Supports seamless backfill setup.             |
-| Date Range Filter       | Specify the date range for data retrieval.    |
+Set once for the whole configuration. Choose one method:
 
-Supported Endpoints
-===================
-
-If you need additional endpoints, please submit your request to
-[ideas.keboola.com](https://ideas.keboola.com/).
+- **Connection string (SAS)** — a shared access signature connection string for
+  the namespace or entity, with Send rights.
+- **Service principal (Entra ID)** — a Microsoft Entra ID application identity:
+  tenant ID, client ID, client secret, and the fully qualified namespace host
+  name (e.g. `my-namespace.servicebus.windows.net`).
 
 Configuration
 =============
 
-Param 1
--------
-Details about parameter 1.
+Destination mapping (per row)
+-----------------------------
 
-Param 2
--------
-Details about parameter 2.
+Each row sends one input table to one topic or queue:
+
+- **Destination type & name** — `topic` or `queue`, plus the entity name. The
+  entity must already exist in the namespace.
+- **Message body** — one of:
+    - `row_as_json` — the whole input row serialized as a UTF-8 JSON object
+      (non-ASCII text is kept as-is, not escaped).
+    - `column_value` — the chosen column's value, sent as the message body
+      exactly as-is (no JSON parsing or wrapping). Set **Content Type** to match
+      the payload (e.g. `text/plain` for plain text, `application/json` if the
+      column already holds a JSON string).
+- **Message properties** — optionally map input columns onto Service Bus broker
+  properties: message ID, session ID, subject, correlation ID, partition key,
+  reply-to, reply-to session ID, scheduled enqueue time (ISO-8601), and custom
+  application properties (a JSON object whose values must be scalars — string,
+  number, boolean, or null). A configured column that is missing from the input
+  table header fails the run with a clear error. A **blank cell** in a mapped
+  column simply skips that property for that row, so a table where only some rows
+  carry a property is fine.
+    - Mapping a stable **Message ID** column lets Azure **duplicate detection**
+      (if enabled on the entity) discard repeats — so re-running a failed job
+      does not deliver the already-sent messages twice. Without it the broker
+      assigns a fresh random ID to every message and cannot deduplicate.
+- **Content type** — set per message. In `row_as_json` mode the body is always a
+  JSON object, so the content type is always `application/json`. In `column_value`
+  mode the content type is configurable (default `application/json`), since the
+  column's raw value may be any MIME type.
+- **Delivery** — batch size. The writer does not set a per-message time-to-live;
+  message expiry follows the destination queue's or topic's own configured default
+  TTL (`default_message_time_to_live`).
+
+Test Connection
+---------------
+
+The **Test Connection** sync action verifies the selected authentication method
+and reaches the target entity by opening the AMQP link, without sending any
+message. Use it to validate credentials and entity access before running.
 
 Output
 ======
 
-Provides a list of tables, foreign keys, and schema.
+This is a writer: it produces no Storage output tables. Its output is the
+messages delivered to the Service Bus topic or queue.
 
 Development
------------
+===========
 
-To customize the local data folder path, replace the `CUSTOM_FOLDER` placeholder with your desired path in the `docker-compose.yml` file:
+To customize the local data folder path, replace the `CUSTOM_FOLDER` placeholder
+with your desired path in the `docker-compose.yml` file:
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     volumes:
@@ -60,8 +101,8 @@ To customize the local data folder path, replace the `CUSTOM_FOLDER` placeholder
       - ./CUSTOM_FOLDER:/data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Clone this repository, initialize the workspace, and run the component using the following
-commands:
+Clone this repository, initialize the workspace, and run the component using the
+following commands:
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 git clone  component-wr-azure-service-bus

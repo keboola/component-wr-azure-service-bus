@@ -1,6 +1,6 @@
 {
-    "id": "in.c-example.example",
-    "name": "example",
+    "id": "in.c-example.orders",
+    "name": "orders",
     "primary_key": ["id"],
-    "columns": ["id", "name", "value"]
+    "columns": ["id", "message"]
 }
