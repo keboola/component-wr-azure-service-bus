@@ -55,6 +55,7 @@ class FakeBatch:
 
     def __init__(self, max_bytes: int) -> None:
         self._max = max_bytes
+        self.max_size_in_bytes = max_bytes  # read by the sender to derive the safety-margin cap
         self.messages: list = []
         self._size = 0
 
@@ -73,9 +74,9 @@ class FakeSender:
         self._capture = capture
         self._max = max_bytes
 
-    def create_message_batch(self) -> FakeBatch:
+    def create_message_batch(self, max_size_in_bytes: int | None = None) -> FakeBatch:
         self._capture.batches_created += 1
-        return FakeBatch(self._max)
+        return FakeBatch(max_size_in_bytes or self._max)
 
     def send_messages(self, message_or_batch, **kwargs) -> None:
         if isinstance(message_or_batch, FakeBatch):

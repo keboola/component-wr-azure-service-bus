@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 # a transport safety net, not a user-tunable knob, so it is not a config field.
 SEND_TIMEOUT_SECONDS = 60
 
+# The SDK's ServiceBusMessageBatch.size_in_bytes (what add_message enforces) under-counts
+# the true AMQP wire encoding of the batch envelope by a few dozen bytes, and
+# create_message_batch() caps a batch at exactly the link's max message size
+# (MAX_BATCH_SIZE_STANDARD / _PREMIUM) with no headroom. A batch packed right up to that cap
+# therefore encodes slightly OVER the broker limit and is rejected on send. Reserve this
+# margin below the link max so a full batch still fits on the wire. 1 KiB is ~16x the observed
+# overshoot and a negligible fraction of the 256 KB / 1 MB caps.
+BATCH_SIZE_SAFETY_MARGIN_BYTES = 1024
+
 
 class MessageSender:
     """Wrap one ServiceBusSender with size-and-count batching plus close-safety."""
@@ -35,7 +44,20 @@ class MessageSender:
         self._sender = sender
         self._batch_size = batch_size
         self._entity_name = entity_name
+        self._batch_max_size: int | None = None  # link max minus the safety margin; resolved on first batch
         self.sent_count = 0  # messages confirmed delivered so far (for partial-failure reporting)
+
+    def _new_batch(self) -> ServiceBusMessageBatch:
+        """Create a batch capped a safety margin below the link's max message size.
+
+        The first call probes the link-negotiated max via a throwaway batch (also the
+        first real broker round-trip), so it is only reached once there is a message to
+        send -- an empty input opens no link.
+        """
+        if self._batch_max_size is None:
+            link_max = self._sender.create_message_batch().max_size_in_bytes
+            self._batch_max_size = max(link_max - BATCH_SIZE_SAFETY_MARGIN_BYTES, BATCH_SIZE_SAFETY_MARGIN_BYTES)
+        return self._sender.create_message_batch(max_size_in_bytes=self._batch_max_size)
 
     def send(self, messages: Iterable[ServiceBusMessage]) -> int:
         """Send every message, batching by size and count; return the number sent."""
@@ -54,10 +76,10 @@ class MessageSender:
 
         for message in messages:
             if batch is None:
-                batch = self._sender.create_message_batch()
+                batch = self._new_batch()
             if batch_count >= self._batch_size:
                 self._flush(batch, batch_count)
-                batch = self._sender.create_message_batch()
+                batch = self._new_batch()
                 batch_count = 0
 
             if self._try_add(batch, message):
@@ -65,7 +87,7 @@ class MessageSender:
             elif batch_count > 0:
                 # The current (non-empty) batch is full: flush and start fresh.
                 self._flush(batch, batch_count)
-                batch = self._sender.create_message_batch()
+                batch = self._new_batch()
                 batch_count = 0
                 if self._try_add(batch, message):
                     batch_count += 1

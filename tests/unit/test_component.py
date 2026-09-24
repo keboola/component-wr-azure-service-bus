@@ -19,8 +19,9 @@ BASE_PARAMS = {
 
 
 class FakeBatch:
-    def __init__(self):
+    def __init__(self, max_size_in_bytes=262144):
         self.msgs = []
+        self.max_size_in_bytes = max_size_in_bytes
 
     def add_message(self, m):
         self.msgs.append(m)
@@ -32,10 +33,10 @@ class FakeSender:
         self.closed = False
         self.batch_error = batch_error
 
-    def create_message_batch(self):
+    def create_message_batch(self, max_size_in_bytes=None):
         if self.batch_error is not None:
             raise self.batch_error
-        return FakeBatch()
+        return FakeBatch(max_size_in_bytes or 262144)
 
     def send_messages(self, x, **kwargs):
         if isinstance(x, FakeBatch):
@@ -165,11 +166,13 @@ def test_run_large_cell_over_128kb_sends(tmp_path):
 def test_run_oversized_single_cell_raises_user_exception(tmp_path):
     # A single cell over the broker cap must fail fast (G2, exit 1), not crash with exit 2.
     class OversizeBatch:
+        max_size_in_bytes = 262144
+
         def add_message(self, m):
             raise MessageSizeExceededError(message="too big")
 
     class OversizeSender:
-        def create_message_batch(self):
+        def create_message_batch(self, max_size_in_bytes=None):
             return OversizeBatch()
 
         def send_messages(self, x, **kwargs):

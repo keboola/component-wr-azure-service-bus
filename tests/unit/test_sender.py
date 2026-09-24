@@ -18,8 +18,9 @@ def _messages(*bodies: str) -> list[ServiceBusMessage]:
 
 
 class FakeBatch:
-    def __init__(self, cap):
+    def __init__(self, cap, max_size_in_bytes=262144):
         self.cap, self.msgs = cap, []
+        self.max_size_in_bytes = max_size_in_bytes  # read by the sender's safety-margin probe
 
     def add_message(self, m):
         if len(self.msgs) >= self.cap:
@@ -33,7 +34,7 @@ class FakeSender:
         self.closed = False
         self.batches_created = 0
 
-    def create_message_batch(self):
+    def create_message_batch(self, max_size_in_bytes=None):
         self.batches_created += 1
         return FakeBatch(self.cap)
 
@@ -64,6 +65,34 @@ def test_flush_by_count():
     assert [len(b) for b in fs.sent_batches] == [2, 2]
 
 
+def test_batches_are_capped_below_link_max_by_safety_margin():
+    # The SDK undercounts the batch wire size, so a batch packed to the raw link max
+    # encodes over the broker limit. The sender must reserve a margin: probe the link
+    # max once (no cap requested), then create real batches at link_max - margin.
+    from sender import BATCH_SIZE_SAFETY_MARGIN_BYTES
+
+    link_max = 262144
+
+    class RecordingSender:
+        def __init__(self):
+            self.requested = []
+
+        def create_message_batch(self, max_size_in_bytes=None):
+            self.requested.append(max_size_in_bytes)
+            return FakeBatch(cap=1000, max_size_in_bytes=link_max)
+
+        def send_messages(self, x, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    rec = RecordingSender()
+    MessageSender(_sender(rec), batch_size=1000).send(_messages("a", "b"))
+    assert rec.requested[0] is None  # first call probes the link-negotiated max
+    assert rec.requested[1] == link_max - BATCH_SIZE_SAFETY_MARGIN_BYTES  # real batch reserves the margin
+
+
 def test_single_send_fallback_when_message_overflows_empty_batch():
     fs = FakeSender(cap=0)  # every batch is immediately full -> empty-batch overflow
     msgs = _messages("x", "y")
@@ -75,7 +104,7 @@ def test_single_send_fallback_when_message_overflows_empty_batch():
 
 def test_oversized_message_raises_user_exception():
     class OversizedSender:
-        def create_message_batch(self):
+        def create_message_batch(self, max_size_in_bytes=None):
             return FakeBatch(cap=0)
 
         def send_messages(self, x, **kwargs):
@@ -112,7 +141,7 @@ class RaisingOnBatchSender:
     def __init__(self, error):
         self.error = error
 
-    def create_message_batch(self):
+    def create_message_batch(self, max_size_in_bytes=None):
         raise self.error
 
     def send_messages(self, x, **kwargs):
@@ -126,7 +155,7 @@ class RaisingOnSendSender:
     def __init__(self, error):
         self.error = error
 
-    def create_message_batch(self):
+    def create_message_batch(self, max_size_in_bytes=None):
         return FakeBatch(cap=1000)
 
     def send_messages(self, x, **kwargs):
@@ -163,7 +192,7 @@ def test_sent_count_reflects_partial_delivery_before_failure():
         def __init__(self):
             self.calls = 0
 
-        def create_message_batch(self):
+        def create_message_batch(self, max_size_in_bytes=None):
             return FakeBatch(cap=1000)
 
         def send_messages(self, x, **kwargs):
