@@ -1,0 +1,415 @@
+[
+  {
+    "name": "01_testConnection",
+    "description": "testConnection sync action succeeds for connection_string auth (mocked SDK).",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "my-queue"
+      }
+    }
+  },
+  {
+    "name": "02_testConnection_bad_conn_string",
+    "description": "testConnection with a malformed connection string fails with exit 1 and a redacted UserException.",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "not-a-valid-connection-string",
+        "destination_type": "queue",
+        "entity_name": "my-queue"
+      }
+    }
+  },
+  {
+    "name": "03_run_queue_row_as_json",
+    "description": "Run against a queue with row_as_json body; every row is sent in a batch.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "04_run_topic_row_as_json",
+    "description": "Run against a topic (get_topic_sender) with row_as_json body.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "topic",
+        "entity_name": "events-topic",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "05_run_column_value",
+    "description": "column_value body: the raw column value is sent as-is, whether or not it looks like JSON.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "payload-queue",
+        "mode": "column_value",
+        "column": "payload"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.payload", "destination": "payload.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "06_run_message_properties",
+    "description": "All message-property column mappings are applied onto the ServiceBusMessage.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "props-queue",
+        "mode": "row_as_json",
+        "message_properties": {
+          "message_id_column": "mid",
+          "session_id_column": "sid",
+          "subject_column": "subj",
+          "correlation_id_column": "corr",
+          "partition_key_column": "pkey",
+          "scheduled_enqueue_time_column": "sched",
+          "application_properties_column": "props"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.properties", "destination": "properties.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "07_run_batch_flush_by_count",
+    "description": "batch_size=2 over 5 rows flushes multiple batches (count-driven flush).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "batch-queue",
+        "mode": "row_as_json",
+        "batch_size": 2
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.batch", "destination": "batch.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "08_run_oversized_row",
+    "description": "A row larger than the entity single-message cap fails fast with exit 1 (UserException).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "oversize-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.oversized", "destination": "oversized.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "09_run_missing_creds",
+    "description": "connection_string auth without #connection_string fails with exit 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "10_run_missing_entity_name",
+    "description": "A run without entity_name fails with exit 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "11_run_empty_input",
+    "description": "Zero data rows succeeds and sends nothing (no batches flushed).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "empty-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.empty", "destination": "empty.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "12_run_service_principal_auth",
+    "description": "service_principal auth selects ClientSecretCredential and the fully_qualified_namespace client.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "service_principal",
+        "tenant_id": "00000000-0000-0000-0000-000000000000",
+        "client_id": "11111111-1111-1111-1111-111111111111",
+        "#client_secret": "fake-service-principal-secret-value-0000",
+        "fully_qualified_namespace": "example.servicebus.windows.net",
+        "destination_type": "queue",
+        "entity_name": "sp-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "13_run_bad_properties_json",
+    "description": "Invalid JSON in the application_properties column fails with exit 1 (UserException).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "badprops-queue",
+        "mode": "row_as_json",
+        "message_properties": {
+          "application_properties_column": "props"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.bad_props", "destination": "bad_props.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "14_run_missing_body_column",
+    "description": "column_value mode with a body column absent from the input header fails with exit 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "column_value",
+        "column": "does_not_exist"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "15_run_missing_property_column",
+    "description": "A message-property column mapping to an absent header column fails with exit 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json",
+        "message_properties": {
+          "message_id_column": "does_not_exist"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "16_run_ragged_row",
+    "description": "A ragged row (missing trailing cell -> None) maps to exit 1, not an uncaught TypeError (exit 2).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "ragged-queue",
+        "mode": "row_as_json",
+        "message_properties": {
+          "application_properties_column": "props"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.ragged", "destination": "ragged.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "17_run_topic_column_value_with_properties",
+    "description": "column_value body on a topic (get_topic_sender), with subject/session_id property mappings applied.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "topic",
+        "entity_name": "alerts-topic",
+        "mode": "column_value",
+        "column": "payload",
+        "message_properties": {
+          "subject_column": "subj",
+          "session_id_column": "sid"
+        }
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.topic_payload", "destination": "topic_payload.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "18_run_row_as_json_content_type_override_ignored",
+    "description": "row_as_json forces content_type to application/json even when config sets a custom value.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json",
+        "content_type": "text/plain"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.rows", "destination": "rows.csv"}
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "19_run_column_value_custom_content_type",
+    "description": "column_value mode applies a custom configured content_type onto every sent message.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "payload-queue",
+        "mode": "column_value",
+        "column": "payload",
+        "content_type": "text/plain"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {"source": "in.c-test.payload", "destination": "payload.csv"}
+          ]
+        }
+      }
+    }
+  }
+]

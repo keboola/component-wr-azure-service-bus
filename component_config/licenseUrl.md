@@ -1,1 +1,1 @@
-/blob/master/LICENSE.md
+https://github.com/keboola/component-wr-azure-service-bus/blob/main/LICENSE.md

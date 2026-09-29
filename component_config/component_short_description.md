@@ -1,1 +1,1 @@
-Enter short description of the component here.
+Sends Storage table rows as messages to Azure Service Bus topics or queues.

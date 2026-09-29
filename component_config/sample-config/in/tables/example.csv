@@ -1,4 +1,4 @@
-"id","name","value"
-"1","alpha","100"
-"2","beta","200"
-"3","gamma","300"
+"id","message"
+"1","hello world"
+"2","order shipped"
+"3","invoice created"
