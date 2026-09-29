@@ -89,6 +89,24 @@ Output
 This is a writer: it produces no Storage output tables. Its output is the
 messages delivered to the Service Bus topic or queue.
 
+Performance
+===========
+
+Measured on the component's test setup:
+
+| Setting | Value |
+|---|---|
+| Keboola stack | GCP `us-east4` |
+| Service Bus | Standard tier namespace in West Europe; queue without partitioning, sessions, or duplicate detection |
+| Input | 1,000,000 rows, 5 short columns (~105 B JSON body per message) |
+| Configuration | Whole row as JSON, batch size 5000, no message properties |
+| Result | **1,000,000 messages in 724 s** of job time (incl. start-up and input read), about **1,380 messages/s** |
+
+Batches are capped by the tier's 256 KB message limit, so with rows this small a
+batch fills at about 1,400 messages; a batch size above that does not speed up
+small rows. Larger rows fit fewer messages per batch. A Premium namespace (1 MB
+batches) or one closer to the Keboola stack should send faster.
+
 Development
 ===========
 
