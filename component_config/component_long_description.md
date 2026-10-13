@@ -4,7 +4,7 @@ Configuration is row-based: the connection to the namespace is set once at the c
 
 **Authentication** — connect with a shared access signature (SAS) connection string, or an Entra ID service principal (tenant ID, client ID, client secret, and namespace host name).
 
-**Message body** — send the whole input row as a UTF-8 JSON object, or the raw value of a single column. Content type is always `application/json` for whole-row mode and settable for single-column mode.
+**Message body** — send the whole input row as a UTF-8 JSON object, or the raw value of a single column. Content type is always `application/json` for whole-row mode and settable for single-column mode. Whole-row mode can optionally write typed JSON values (integers, numbers, booleans) from the input table's column data types, with per-column overrides and an opt-in "Empty cells as null" switch.
 
 **Message properties** — optionally map input columns onto Service Bus broker properties such as message ID, session ID, subject, correlation ID, partition key, scheduled enqueue time, reply-to, and custom application properties.
 

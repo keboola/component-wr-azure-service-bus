@@ -33,6 +33,25 @@ class BodyMode(StrEnum):
     COLUMN_VALUE = "column_value"
 
 
+class ValueTyping(StrEnum):
+    STRING = "string"
+    TYPED = "typed"
+
+
+class JsonValueType(StrEnum):
+    STRING = "string"
+    INTEGER = "integer"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+
+
+class ColumnTypeOverride(BaseModel):
+    """Forces the JSON type of one input column in ``row_as_json`` mode, winning over the table's data type."""
+
+    column: str
+    type: JsonValueType
+
+
 class MessagePropertyMap(BaseModel):
     """Optional row-column -> ServiceBusMessage attribute mappings (each column name is free-text)."""
 
@@ -67,6 +86,9 @@ class Configuration(BaseModel):
     mode: BodyMode = BodyMode.ROW_AS_JSON
     column: str | None = None
     content_type: str = "application/json"
+    value_typing: ValueTyping = ValueTyping.STRING
+    column_types: list[ColumnTypeOverride] = Field(default_factory=list)
+    empty_as_null: bool = False
     batch_size: int = Field(default=1000, ge=1)
     message_properties: MessagePropertyMap = Field(default_factory=MessagePropertyMap)
 
@@ -90,6 +112,22 @@ class Configuration(BaseModel):
                 raise ValueError("`column` is required when `mode` is `column_value`.")
         else:
             self.column = None
+        return self
+
+    @model_validator(mode="after")
+    def _validate_value_typing(self) -> Self:
+        # The typing options only shape the row_as_json body. Leftovers from another mode, or
+        # overrides left behind after switching back to string values, are dropped rather than
+        # rejected, mirroring `column` above.
+        if self.mode != BodyMode.ROW_AS_JSON:
+            self.value_typing = ValueTyping.STRING
+            self.empty_as_null = False
+        if self.value_typing != ValueTyping.TYPED:
+            self.column_types = []
+        names = [override.column for override in self.column_types]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"`column_types` lists a column more than once: {', '.join(duplicates)}.")
         return self
 
     @model_validator(mode="after")

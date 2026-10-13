@@ -1,7 +1,7 @@
 import pytest
 from keboola.component.exceptions import UserException
 
-from configuration import BodyMode, Configuration, DestinationType
+from configuration import BodyMode, Configuration, DestinationType, JsonValueType, ValueTyping
 
 BASE = {
     "auth_type": "connection_string",
@@ -67,3 +67,60 @@ def test_message_properties_parsed():
     assert c.message_properties.session_id_column == "sid"
     assert c.message_properties.message_id_column == "mid"
     assert c.message_properties.subject_column is None
+
+
+def test_value_typing_defaults_are_backward_compatible():
+    c = Configuration(**BASE)
+    assert c.value_typing is ValueTyping.STRING
+    assert c.column_types == []
+    assert c.empty_as_null is False
+
+
+def test_typed_config_parses_overrides():
+    c = Configuration(
+        **BASE,
+        value_typing="typed",
+        empty_as_null=True,
+        column_types=[{"column": "a", "type": "integer"}, {"column": "b", "type": "string"}],
+    )
+    assert c.value_typing is ValueTyping.TYPED
+    assert c.empty_as_null is True
+    assert [(o.column, o.type) for o in c.column_types] == [("a", JsonValueType.INTEGER), ("b", JsonValueType.STRING)]
+
+
+def test_unknown_override_type_is_rejected():
+    with pytest.raises(UserException):
+        Configuration(**BASE, value_typing="typed", column_types=[{"column": "a", "type": "date"}])
+
+
+def test_unknown_value_typing_is_rejected():
+    with pytest.raises(UserException):
+        Configuration(**BASE, value_typing="auto")
+
+
+def test_duplicate_override_column_is_rejected():
+    with pytest.raises(UserException, match="more than once"):
+        Configuration(
+            **BASE,
+            value_typing="typed",
+            column_types=[{"column": "a", "type": "integer"}, {"column": "a", "type": "number"}],
+        )
+
+
+def test_overrides_dropped_when_value_typing_is_string():
+    c = Configuration(**BASE, column_types=[{"column": "a", "type": "integer"}])
+    assert c.column_types == []
+
+
+def test_typing_options_ignored_outside_row_as_json():
+    c = Configuration(
+        **BASE,
+        mode="column_value",
+        column="payload",
+        value_typing="typed",
+        empty_as_null=True,
+        column_types=[{"column": "a", "type": "integer"}],
+    )
+    assert c.value_typing is ValueTyping.STRING
+    assert c.empty_as_null is False
+    assert c.column_types == []

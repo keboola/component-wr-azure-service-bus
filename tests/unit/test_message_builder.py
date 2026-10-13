@@ -204,3 +204,13 @@ def test_required_columns_collects_body_and_property_columns():
 
 def test_required_columns_empty_for_row_as_json_without_properties():
     assert required_columns(Configuration(**BASE)) == []
+
+
+def test_required_columns_includes_overrides_when_typed():
+    cfg = Configuration(**{**BASE, "value_typing": "typed", "column_types": [{"column": "amount", "type": "number"}]})
+    assert required_columns(cfg) == ["amount"]
+
+
+def test_required_columns_ignores_overrides_when_not_typed():
+    cfg = Configuration(**{**BASE, "column_types": [{"column": "amount", "type": "number"}]})
+    assert required_columns(cfg) == []

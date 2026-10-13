@@ -98,6 +98,88 @@
       "default": "application/json",
       "propertyOrder": 50
     },
+    "value_typing": {
+      "type": "string",
+      "title": "Value Types",
+      "description": "How values are written into the JSON object. \"All values as strings\" writes every value as a JSON string. \"Typed from column data types\" uses the input table's column data types: INTEGER becomes a JSON integer, NUMERIC/FLOAT a JSON number (exact decimal text, never rounded through float), BOOLEAN a JSON boolean, and everything else (STRING, DATE, TIMESTAMP, unknown) a string.",
+      "enum": [
+        "string",
+        "typed"
+      ],
+      "options": {
+        "enum_titles": [
+          "All values as strings",
+          "Typed from column data types"
+        ],
+        "tooltip": "Tables without data types have only string columns — use the Column Type Overrides below to set their types.",
+        "dependencies": {
+          "mode": "row_as_json"
+        }
+      },
+      "default": "string",
+      "propertyOrder": 52
+    },
+    "column_types": {
+      "type": "array",
+      "title": "Column Type Overrides",
+      "description": "Overrides win over the table's data types. Use them for tables without data types, or to correct a type (e.g. force string for zip codes).",
+      "format": "table",
+      "items": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column",
+            "watch": {
+              "columns": "_metadata_.table.columns"
+            },
+            "enumSource": "columns",
+            "propertyOrder": 1
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ],
+            "options": {
+              "enum_titles": [
+                "String",
+                "Integer",
+                "Number",
+                "Boolean"
+              ]
+            },
+            "default": "string",
+            "propertyOrder": 2
+          }
+        }
+      },
+      "options": {
+        "dependencies": {
+          "mode": "row_as_json",
+          "value_typing": "typed"
+        }
+      },
+      "propertyOrder": 54
+    },
+    "empty_as_null": {
+      "type": "boolean",
+      "title": "Empty cells as null",
+      "format": "checkbox",
+      "default": false,
+      "description": "Emit empty cells as JSON null instead of \"\" (string columns).",
+      "options": {
+        "tooltip": "CSV cannot tell NULL from an empty string, so this is opt-in and applies to every column. With \"Typed\" values and this off, an empty cell in an integer/number/boolean column fails the run with an error naming the column and row; string columns keep \"\".",
+        "dependencies": {
+          "mode": "row_as_json"
+        }
+      },
+      "propertyOrder": 56
+    },
     "batch_size": {
       "type": "integer",
       "title": "Batch Size",

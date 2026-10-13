@@ -10,13 +10,15 @@ ServiceBusMessage attributes; a row-level mapping failure raises
 
 import json
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 from azure.servicebus import ServiceBusMessage
 from keboola.component.exceptions import UserException
 
-from configuration import BodyMode, Configuration, MessagePropertyMap
+from configuration import BodyMode, Configuration, JsonValueType, MessagePropertyMap, ValueTyping
+from typed_values import serialize_row
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +56,22 @@ def required_columns(config: Configuration) -> list[str]:
         columns.append(props.application_properties_column)
     if props.scheduled_enqueue_time_column:
         columns.append(props.scheduled_enqueue_time_column)
+    if config.mode == BodyMode.ROW_AS_JSON and config.value_typing == ValueTyping.TYPED:
+        columns.extend(override.column for override in config.column_types)
     return columns
 
 
-def build_message(row: dict[str, str], config: Configuration) -> ServiceBusMessage:
-    """Map a CSV DictReader row onto a ServiceBusMessage per the row configuration."""
+def build_message(
+    row: dict[str, str],
+    config: Configuration,
+    column_types: Mapping[str, JsonValueType] | None = None,
+    row_number: int | None = None,
+) -> ServiceBusMessage:
+    """Map a CSV DictReader row onto a ServiceBusMessage per the row configuration.
+
+    ``column_types`` (non-string JSON type per column, see ``typed_values.resolve_column_types``)
+    and ``row_number`` (1-based data row, for error messages) only matter in ``row_as_json`` mode.
+    """
     # row_as_json always serializes the body with json.dumps(), so its content type is
     # always application/json -- ignore any stale/leftover config value. content_type
     # only genuinely varies in column_value mode.
@@ -67,10 +80,12 @@ def build_message(row: dict[str, str], config: Configuration) -> ServiceBusMessa
 
     _apply_property_mappings(kwargs, row, config.message_properties)
 
-    return ServiceBusMessage(_build_body(row, config), **kwargs)
+    return ServiceBusMessage(_build_body(row, config, column_types or {}, row_number), **kwargs)
 
 
-def _build_body(row: dict[str, str], config: Configuration) -> str:
+def _build_body(
+    row: dict[str, str], config: Configuration, column_types: Mapping[str, JsonValueType], row_number: int | None
+) -> str:
     if config.mode == BodyMode.COLUMN_VALUE:
         # A ragged row (fewer cells than the header) leaves DictReader filling the
         # trailing column with None; treat a missing cell as an empty value. The raw
@@ -79,6 +94,8 @@ def _build_body(row: dict[str, str], config: Configuration) -> str:
         return row.get(config.column or "") or ""
     # ensure_ascii=False keeps non-ASCII text (e.g. accented characters) as raw UTF-8
     # in the JSON body rather than \uXXXX escapes; the SDK encodes the str as UTF-8.
+    if column_types or config.empty_as_null:
+        return serialize_row(row, column_types, config.empty_as_null, row_number)
     return json.dumps(row, ensure_ascii=False)
 
 

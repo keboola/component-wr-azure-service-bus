@@ -35,6 +35,9 @@ def _build_datadir(case_name: str, tmp_path: Path) -> Path:
     for table in config.get("storage", {}).get("input", {}).get("tables", []):
         dest = table["destination"]
         shutil.copy(INPUT_FILES_DIR / dest, data_dir / "in" / "tables" / dest)
+        manifest = INPUT_FILES_DIR / f"{dest}.manifest"
+        if manifest.exists():
+            shutil.copy(manifest, data_dir / "in" / "tables" / manifest.name)
     return data_dir
 
 
@@ -258,3 +261,80 @@ def test_19_run_column_value_custom_content_type(mock_service_bus, tmp_path, mon
     cap = mock_service_bus
     assert len(cap.messages) == 2
     assert all(m.content_type == "text/plain" for m in cap.messages)
+
+
+# --- Run: typed JSON values (CFTL-784) --------------------------------------------
+
+
+def test_20_run_typed_from_table_types(mock_service_bus, tmp_path, monkeypatch):
+    run_case("20_run_typed_from_table_types", tmp_path, monkeypatch)
+    bodies = _bodies(mock_service_bus)
+    assert bodies == [
+        (
+            '{"id": 1, "price": 1.89, "ratio": 0.5, "active": true, "name": "alpha", '
+            '"created": "2026-01-01 10:00:00", "note": null}'
+        ),
+        (
+            '{"id": 2, "price": 12345678901234567890.123456789012345678, "ratio": 0.0000001, "active": false, '
+            '"name": "Košík", "created": "2026-01-02 11:30:00", "note": "hello"}'
+        ),
+        '{"id": null, "price": null, "ratio": null, "active": null, "name": null, "created": null, "note": null}',
+    ]
+    assert all(m.content_type == "application/json" for m in mock_service_bus.messages)
+
+
+def test_21_run_typed_legacy_manifest(mock_service_bus, tmp_path, monkeypatch):
+    run_case("21_run_typed_legacy_manifest", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus) == ['{"id": 7, "price": 2.50, "active": true, "name": "gamma"}']
+
+
+def test_22_run_typed_overrides_untyped_table(mock_service_bus, tmp_path, monkeypatch):
+    run_case("22_run_typed_overrides_untyped_table", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus) == [
+        '{"id": 1, "price": 9.99, "zip": "01234", "flag": true}',
+        '{"id": 2, "price": 10, "zip": "98765", "flag": false}',
+    ]
+
+
+def test_23_run_typed_bad_value(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("23_run_typed_bad_value", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "'abc'" in err
+    assert "column 'price'" in err
+    assert "row 2" in err
+
+
+def test_24_run_typed_empty_cell_without_null_flag(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("24_run_typed_empty_cell_without_null_flag", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "Empty value" in err
+    assert "column 'price'" in err
+    assert "row 2" in err
+
+
+def test_25_run_typed_override_missing_column(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("25_run_typed_override_missing_column", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    assert "does_not_exist" in capsys.readouterr().err
+    assert mock_service_bus.messages == []
+
+
+def test_26_run_string_typing_default_ignores_manifest(mock_service_bus, tmp_path, monkeypatch):
+    run_case("26_run_string_typing_default_ignores_manifest", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus)[0] == (
+        '{"id": "1", "price": "1.89", "ratio": "0.5", "active": "true", "name": "alpha", '
+        '"created": "2026-01-01 10:00:00", "note": ""}'
+    )
+
+
+def test_27_run_string_typing_empty_as_null(mock_service_bus, tmp_path, monkeypatch):
+    run_case("27_run_string_typing_empty_as_null", tmp_path, monkeypatch)
+    bodies = _bodies(mock_service_bus)
+    assert json.loads(bodies[0])["note"] is None
+    assert json.loads(bodies[0])["id"] == "1"
+    assert json.loads(bodies[2]) == dict.fromkeys(["id", "price", "ratio", "active", "name", "created", "note"])
