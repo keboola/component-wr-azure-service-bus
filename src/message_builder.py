@@ -67,11 +67,7 @@ def build_message(
     column_types: Mapping[str, JsonValueType] | None = None,
     row_number: int | None = None,
 ) -> ServiceBusMessage:
-    """Map a CSV DictReader row onto a ServiceBusMessage per the row configuration.
-
-    ``column_types`` (non-string JSON type per column, see ``typed_values.resolve_column_types``)
-    and ``row_number`` (1-based data row, for error messages) only matter in ``row_as_json`` mode.
-    """
+    """Map a CSV DictReader row onto a ServiceBusMessage per the row configuration."""
     # row_as_json always serializes the body with json.dumps(), so its content type is
     # always application/json -- ignore any stale/leftover config value. content_type
     # only genuinely varies in column_value mode.

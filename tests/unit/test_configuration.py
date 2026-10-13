@@ -124,3 +124,8 @@ def test_typing_options_ignored_outside_row_as_json():
     assert c.value_typing is ValueTyping.STRING
     assert c.empty_as_null is False
     assert c.column_types == []
+
+
+def test_blank_override_column_is_rejected():
+    with pytest.raises(UserException):
+        Configuration(**BASE, value_typing="typed", column_types=[{"column": "", "type": "integer"}])

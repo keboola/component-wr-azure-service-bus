@@ -97,7 +97,8 @@ byte-identical to earlier versions.
   | `STRING`, `DATE`, `TIMESTAMP`, unknown | string |
 
   A table without data types (for example one created by a component that does
-  not set them) has only string columns, so use the overrides below.
+  not set them) has only string columns, so use the overrides below; the run
+  logs a warning when typing resolves no non-string column.
 - **Column Type Overrides** (`column_types`) — a list of `{"column": ..., "type": ...}`
   with `type` one of `string`, `integer`, `number`, `boolean`. An override wins
   over the table's data type, so it can type a column of an untyped table or force

@@ -103,8 +103,14 @@ class Component(ComponentBase):
     def _log_value_typing(config: Configuration, column_types: dict[str, JsonValueType]) -> None:
         if config.value_typing != ValueTyping.TYPED:
             return
+        if not column_types:
+            logger.warning(
+                "Typed JSON values are enabled but no column resolved to a non-string type, so every value is "
+                "written as a string. Check the input table's data types or set Column Type Overrides."
+            )
+            return
         typed = ", ".join(f"{name}={json_type}" for name, json_type in column_types.items())
-        logger.info("Typed JSON values; non-string columns: %s.", typed or "none (all columns are strings)")
+        logger.info("Typed JSON values; non-string columns: %s.", typed)
 
     @staticmethod
     def _open_sender(client: ServiceBusClient, config: Configuration) -> ServiceBusSender:

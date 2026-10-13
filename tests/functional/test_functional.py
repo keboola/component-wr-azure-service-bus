@@ -9,6 +9,7 @@ network is touched and no cassettes are recorded (the send path is AMQP, not
 HTTP, so vcrpy cannot record it).
 """
 
+import csv
 import json
 import shutil
 from pathlib import Path
@@ -263,9 +264,6 @@ def test_19_run_column_value_custom_content_type(mock_service_bus, tmp_path, mon
     assert all(m.content_type == "text/plain" for m in cap.messages)
 
 
-# --- Run: typed JSON values (CFTL-784) --------------------------------------------
-
-
 def test_20_run_typed_from_table_types(mock_service_bus, tmp_path, monkeypatch):
     run_case("20_run_typed_from_table_types", tmp_path, monkeypatch)
     bodies = _bodies(mock_service_bus)
@@ -326,10 +324,10 @@ def test_25_run_typed_override_missing_column(mock_service_bus, tmp_path, monkey
 
 def test_26_run_string_typing_default_ignores_manifest(mock_service_bus, tmp_path, monkeypatch):
     run_case("26_run_string_typing_default_ignores_manifest", tmp_path, monkeypatch)
-    assert _bodies(mock_service_bus)[0] == (
-        '{"id": "1", "price": "1.89", "ratio": "0.5", "active": "true", "name": "alpha", '
-        '"created": "2026-01-01 10:00:00", "note": ""}'
-    )
+    with open(INPUT_FILES_DIR / "typed.csv", newline="", encoding="utf-8") as f:
+        expected = [json.dumps(row, ensure_ascii=False) for row in csv.DictReader(f)]
+    assert _bodies(mock_service_bus) == expected
+    assert expected[0].startswith('{"id": "1", "price": "1.89"')
 
 
 def test_27_run_string_typing_empty_as_null(mock_service_bus, tmp_path, monkeypatch):
@@ -338,3 +336,9 @@ def test_27_run_string_typing_empty_as_null(mock_service_bus, tmp_path, monkeypa
     assert json.loads(bodies[0])["note"] is None
     assert json.loads(bodies[0])["id"] == "1"
     assert json.loads(bodies[2]) == dict.fromkeys(["id", "price", "ratio", "active", "name", "created", "note"])
+
+
+def test_28_run_typed_untyped_table_without_overrides(mock_service_bus, tmp_path, monkeypatch, caplog):
+    run_case("28_run_typed_untyped_table_without_overrides", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus)[0] == '{"id": "1", "price": "9.99", "zip": "01234", "flag": "yes"}'
+    assert any("no column resolved to a non-string type" in r.getMessage() for r in caplog.records)

@@ -1,16 +1,3 @@
-"""Typed JSON serialisation of one input row for ``row_as_json`` mode.
-
-The JSON type of a column comes from the input table's base data type (read through
-``keboola.component``'s ``TableDefinition.schema``, which also normalises legacy
-``KBC.datatype.basetype`` column metadata) and can be overridden per column in the
-configuration. Only non-string columns are tracked: a column without an entry is
-written as a JSON string, exactly as before.
-
-Numbers are never routed through ``float``: the exact decimal text is validated,
-normalised to JSON number syntax and written into the body verbatim, so a
-``NUMERIC(38,10)`` value keeps every digit.
-"""
-
 import json
 import re
 from collections.abc import Mapping
@@ -34,27 +21,20 @@ _NUMBER_RE = re.compile(r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?")
 _TRUE_VALUES = frozenset({"true", "t", "1", "yes"})
 _FALSE_VALUES = frozenset({"false", "f", "0", "no"})
 
-# Bounds the adjusted exponent so a value such as "1e999999999" cannot expand into a
-# gigantic digit string. FLOAT tops out near 1e308, so this never rejects real data.
 _MAX_ADJUSTED_EXPONENT = 1000
 
 _MAX_VALUE_PREVIEW = 40
 
 
 class ValueConversionError(UserException):
-    """A cell cannot be written as its column's JSON type (user-fixable, exit 1)."""
+    pass
 
 
 class _Unconvertible(ValueError):
-    """A converter's rejection reason; wrapped into a :class:`ValueConversionError` with column and row."""
+    pass
 
 
 def resolve_column_types(table: TableDefinition, config: Configuration) -> dict[str, JsonValueType]:
-    """Non-string JSON type per column; empty unless ``value_typing`` is ``typed``.
-
-    Table base types are applied first, then the configured overrides, so an override
-    always wins (a ``string`` override removes the column from the result).
-    """
     if config.value_typing != ValueTyping.TYPED:
         return {}
     types: dict[str, JsonValueType] = {}
@@ -81,16 +61,14 @@ def serialize_row(
     empty_as_null: bool,
     row_number: int | None,
 ) -> str:
-    """Serialise a CSV row to a JSON object, formatted like ``json.dumps(row, ensure_ascii=False)``.
-
-    Raises :class:`ValueConversionError` naming the column and row when a cell cannot be
-    converted, or when it is empty in a non-string column while ``empty_as_null`` is off.
-    """
     parts = []
     for key, value in row.items():
-        key_text = json.dumps("null" if key is None else key, ensure_ascii=False)
-        parts.append(f"{key_text}: {_json_fragment(key, value, column_types, empty_as_null, row_number)}")
+        parts.append(f"{_key_text(key)}: {_json_fragment(key, value, column_types, empty_as_null, row_number)}")
     return "{" + ", ".join(parts) + "}"
+
+
+def _key_text(key: str | None) -> str:
+    return json.dumps("null" if key is None else key, ensure_ascii=False)
 
 
 def _json_fragment(

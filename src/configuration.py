@@ -46,9 +46,7 @@ class JsonValueType(StrEnum):
 
 
 class ColumnTypeOverride(BaseModel):
-    """Forces the JSON type of one input column in ``row_as_json`` mode, winning over the table's data type."""
-
-    column: str
+    column: str = Field(min_length=1)
     type: JsonValueType
 
 
@@ -115,15 +113,16 @@ class Configuration(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _validate_value_typing(self) -> Self:
-        # The typing options only shape the row_as_json body. Leftovers from another mode, or
-        # overrides left behind after switching back to string values, are dropped rather than
-        # rejected, mirroring `column` above.
+    def _drop_typing_outside_row_as_json(self) -> Self:
         if self.mode != BodyMode.ROW_AS_JSON:
             self.value_typing = ValueTyping.STRING
             self.empty_as_null = False
         if self.value_typing != ValueTyping.TYPED:
             self.column_types = []
+        return self
+
+    @model_validator(mode="after")
+    def _reject_duplicate_column_types(self) -> Self:
         names = [override.column for override in self.column_types]
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:

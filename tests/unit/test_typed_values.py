@@ -98,6 +98,14 @@ class TestSerialization:
         row = {"a": "1", "b": "", "c": "Košík"}
         assert _body(row) == json.dumps(row, ensure_ascii=False)
 
+    def test_default_path_is_byte_identical_for_ragged_and_extra_cells(self):
+        for row in ({"a": "1", "b": None}, {"a": "1", None: ["x", "y"]}, {"a": "", "b": "Košík"}):
+            assert _body(row) == json.dumps(row, ensure_ascii=False)
+
+    def test_typed_config_through_build_message(self):
+        body = _body({"i": "3", "s": "x"}, {"i": INT}, value_typing="typed")
+        assert body == '{"i": 3, "s": "x"}'
+
     def test_typed_output_is_valid_json(self):
         body = serialize_row({"i": "-7", "n": "-0.25", "b": "0"}, {"i": INT, "n": NUM, "b": BOOL}, False, 1)
         assert json.loads(body) == {"i": -7, "n": -0.25, "b": False}
