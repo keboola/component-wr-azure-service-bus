@@ -78,3 +78,58 @@ def test_to_user_exception_redacts_sas_key():
     exc = client_mod.to_user_exception(ServiceBusError(message="boom Endpoint=sb://x/;SharedAccessKey=SEKRIT"))
     assert "SEKRIT" not in str(exc)
     assert "SharedAccessKey=***" in str(exc)
+
+
+ROW_KEY = "Endpoint=sb://rowns/;SharedAccessKeyName=rk;SharedAccessKey=ROWSECRET"
+
+
+def test_row_connection_string_overrides_root_connection_string():
+    cfg = Configuration(**BASE, **{"#row_connection_string": ROW_KEY})
+    with mock.patch.object(client_mod, "ServiceBusClient") as sb:
+        client_mod.build_service_bus_client(cfg)
+        sb.from_connection_string.assert_called_once_with(conn_str=ROW_KEY)
+
+
+def test_row_connection_string_overrides_service_principal_root():
+    cfg = Configuration(
+        auth_type="service_principal",
+        tenant_id="t",
+        client_id="c",
+        **{"#client_secret": "sec", "#row_connection_string": ROW_KEY},
+        fully_qualified_namespace="ns.servicebus.windows.net",
+        destination_type="queue",
+        entity_name="q1",
+    )
+    with (
+        mock.patch.object(client_mod, "ServiceBusClient") as sb,
+        mock.patch.object(client_mod, "ClientSecretCredential") as cred,
+    ):
+        client_mod.build_service_bus_client(cfg)
+        sb.from_connection_string.assert_called_once_with(conn_str=ROW_KEY)
+        cred.assert_not_called()
+        sb.assert_not_called()
+
+
+def test_row_connection_string_without_root_auth():
+    cfg = Configuration(destination_type="queue", entity_name="q1", **{"#row_connection_string": ROW_KEY})
+    with mock.patch.object(client_mod, "ServiceBusClient") as sb:
+        client_mod.build_service_bus_client(cfg)
+        sb.from_connection_string.assert_called_once_with(conn_str=ROW_KEY)
+
+
+def test_empty_row_connection_string_keeps_root_auth():
+    cfg = Configuration(**BASE, **{"#row_connection_string": ""})
+    with mock.patch.object(client_mod, "ServiceBusClient") as sb:
+        client_mod.build_service_bus_client(cfg)
+        sb.from_connection_string.assert_called_once_with(conn_str=BASE["#connection_string"])
+
+
+def test_bad_row_connection_string_redacts_key_and_names_the_field():
+    cfg = Configuration(**BASE, **{"#row_connection_string": ROW_KEY})
+    with mock.patch.object(client_mod, "ServiceBusClient") as sb:
+        sb.from_connection_string.side_effect = ValueError("malformed Endpoint=sb://x/;SharedAccessKey=ROWSECRET")
+        with pytest.raises(UserException) as exc:
+            client_mod.build_service_bus_client(cfg)
+    assert "ROWSECRET" not in str(exc.value)
+    assert "#row_connection_string" in str(exc.value)
+    assert "SharedAccessKey=***" in str(exc.value)

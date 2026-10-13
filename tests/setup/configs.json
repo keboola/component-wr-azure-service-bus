@@ -411,5 +411,176 @@
         }
       }
     }
+  },
+  {
+    "name": "20_run_row_connection_string_overrides_root",
+    "description": "A row-level #row_connection_string overrides the root connection string.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=root-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "#row_connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=row-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=;EntityPath=row-topic",
+        "destination_type": "topic",
+        "entity_name": "row-topic",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.rows",
+              "destination": "rows.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "21_run_row_connection_string_overrides_service_principal",
+    "description": "A row-level #row_connection_string overrides service-principal root auth.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "service_principal",
+        "tenant_id": "00000000-0000-0000-0000-000000000000",
+        "client_id": "11111111-1111-1111-1111-111111111111",
+        "#client_secret": "fake-service-principal-secret-value-0000",
+        "fully_qualified_namespace": "example.servicebus.windows.net",
+        "#row_connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=row-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "row-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.rows",
+              "destination": "rows.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "22_run_empty_row_connection_string_uses_root",
+    "description": "An empty #row_connection_string leaves root auth in effect (unchanged behaviour).",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=root-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "#row_connection_string": "",
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.rows",
+              "destination": "rows.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "23_run_row_connection_string_without_root_auth",
+    "description": "Root auth absent: the row key alone is enough.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "#row_connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=row-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "row-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.rows",
+              "destination": "rows.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "24_run_no_root_auth_no_row_key",
+    "description": "Neither root auth nor a row key fails with exit 1 and a clear message.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "destination_type": "queue",
+        "entity_name": "orders-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.rows",
+              "destination": "rows.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "25_run_row_connection_string_entity_path_mismatch",
+    "description": "The row key's EntityPath differs from entity_name: exit 1 naming #row_connection_string.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=root-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "#row_connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=row-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=;EntityPath=other-topic",
+        "destination_type": "topic",
+        "entity_name": "row-topic",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.rows",
+              "destination": "rows.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "26_testConnection_row_connection_string",
+    "description": "testConnection with only a row key (no root auth) succeeds.",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "#row_connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=row-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "row-queue"
+      }
+    }
+  },
+  {
+    "name": "27_testConnection_root_without_row",
+    "description": "testConnection from the root configuration (no entity, keys only on rows) fails with a clear message.",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": ""
+      }
+    }
   }
 ]

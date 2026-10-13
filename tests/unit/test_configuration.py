@@ -67,3 +67,62 @@ def test_message_properties_parsed():
     assert c.message_properties.session_id_column == "sid"
     assert c.message_properties.message_id_column == "mid"
     assert c.message_properties.subject_column is None
+
+
+ROW_KEY = "Endpoint=sb://x/;SharedAccessKeyName=rk;SharedAccessKey=ROWSECRET;EntityPath=q1"
+ROW_ONLY = {"destination_type": "queue", "entity_name": "q1"}
+
+
+def test_row_connection_string_defaults_empty():
+    assert Configuration(**BASE).row_connection_string == ""
+
+
+def test_row_connection_string_alone_satisfies_auth():
+    c = Configuration(**ROW_ONLY, **{"#row_connection_string": ROW_KEY})
+    assert c.auth_type is None
+    assert c.row_connection_string == ROW_KEY
+
+
+def test_row_connection_string_with_incomplete_service_principal_root():
+    c = Configuration(
+        auth_type="service_principal",
+        tenant_id="t",
+        **ROW_ONLY,
+        **{"#row_connection_string": ROW_KEY},
+    )
+    assert c.row_connection_string == ROW_KEY
+
+
+def test_row_connection_string_with_empty_root_connection_string():
+    c = Configuration(auth_type="connection_string", **ROW_ONLY, **{"#row_connection_string": ROW_KEY})
+    assert c.connection_string == ""
+
+
+def test_row_connection_string_is_stripped_and_none_is_empty():
+    assert Configuration(**BASE, **{"#row_connection_string": f"  {ROW_KEY}\n"}).row_connection_string == ROW_KEY
+    assert Configuration(**BASE, **{"#row_connection_string": None}).row_connection_string == ""
+    assert Configuration(**BASE, **{"#row_connection_string": "   "}).row_connection_string == ""
+
+
+def test_blank_row_connection_string_does_not_replace_missing_root_auth():
+    with pytest.raises(UserException, match="No credentials configured"):
+        Configuration(**ROW_ONLY, **{"#row_connection_string": "  "})
+
+
+def test_neither_root_auth_nor_row_key_is_a_clear_error():
+    with pytest.raises(UserException) as exc:
+        Configuration(**ROW_ONLY)
+    assert "#row_connection_string" in str(exc.value)
+    assert "auth_type" in str(exc.value)
+
+
+def test_missing_root_connection_string_error_mentions_row_key():
+    with pytest.raises(UserException) as exc:
+        Configuration(auth_type="connection_string", **ROW_ONLY)
+    assert "#connection_string" in str(exc.value)
+    assert "#row_connection_string" in str(exc.value)
+
+
+def test_invalid_auth_type_still_rejected_with_row_key():
+    with pytest.raises(UserException):
+        Configuration(auth_type="bogus", **ROW_ONLY, **{"#row_connection_string": ROW_KEY})

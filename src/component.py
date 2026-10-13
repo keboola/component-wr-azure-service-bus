@@ -63,7 +63,14 @@ class Component(ComponentBase):
     @sync_action("testConnection")
     def test_connection(self) -> ValidationResult:
         """Open a sender for the configured auth method and force the AMQP link open as an auth/connectivity probe."""
-        config = Configuration(**self.configuration.parameters)
+        parameters = self.configuration.parameters
+        if not Configuration.has_destination(parameters):
+            raise UserException(
+                "testConnection probes a specific topic or queue, so it needs the row's `destination_type` and "
+                "`entity_name`. Run it from a configuration row; the configuration-level parameters alone are not "
+                "enough, in particular when credentials are provided per row via `#row_connection_string`."
+            )
+        config = Configuration(**parameters)
         try:
             with build_service_bus_client(config) as client, self._open_sender(client, config) as sender:
                 # Forces the real connection + auth round-trip. The SDK's create_message_batch()
@@ -107,8 +114,13 @@ class Component(ComponentBase):
         except ValueError as e:
             # get_queue_sender/get_topic_sender raise a bare ValueError when the connection
             # string carries an EntityPath that differs from the configured entity_name.
+            source = (
+                "row connection string (`#row_connection_string`)"
+                if config.row_connection_string
+                else "connection string"
+            )
             raise UserException(
-                f"The connection string's entity (EntityPath) does not match the configured "
+                f"The {source}'s entity (EntityPath) does not match the configured "
                 f"entity_name '{config.entity_name}'. Use a namespace-level connection string "
                 f"(no EntityPath), or set entity_name to the entity named in the connection string. "
                 f"(details: {redact_secrets(str(e))})"
