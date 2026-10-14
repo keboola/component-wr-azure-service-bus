@@ -51,6 +51,20 @@ class MessagePropertyMap(BaseModel):
     reply_to_session_id_column: str | None = None
 
 
+CREDENTIAL_KEYS = (
+    "#row_connection_string",
+    "#connection_string",
+    "tenant_id",
+    "client_id",
+    "#client_secret",
+    "fully_qualified_namespace",
+)
+
+
+def _is_set(value: Any) -> bool:
+    return bool(value.strip()) if isinstance(value, str) else value is not None
+
+
 class Configuration(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
@@ -86,6 +100,10 @@ class Configuration(BaseModel):
     @staticmethod
     def has_destination(parameters: dict[str, Any]) -> bool:
         return bool(parameters.get("entity_name"))
+
+    @staticmethod
+    def has_credentials(parameters: dict[str, Any]) -> bool:
+        return any(_is_set(parameters.get(key)) for key in CREDENTIAL_KEYS)
 
     @field_validator("row_connection_string", mode="before")
     @classmethod

@@ -354,27 +354,49 @@ def test_test_connection_uses_row_connection_string(tmp_path):
     assert "succeeded" in result.message.lower()
 
 
-def test_test_connection_from_root_config_without_entity_gives_clear_message(tmp_path, capsys):
-    root_only = {"auth_type": "connection_string", "#connection_string": ""}
-    _write_datadir(tmp_path, root_only, [], with_table=False, action="testConnection")
-    with (
-        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
-        pytest.raises(SystemExit) as exc,
-    ):
-        Component().test_connection()
-    assert exc.value.code == 1
-    err = capsys.readouterr().err
-    assert "configuration row" in err
-    assert "#row_connection_string" in err
+NO_CREDENTIALS_TEXT = (
+    "No credentials are set on the configuration. "
+    "If each row has its own row connection string, use Test Connection in that row."
+)
 
 
-def test_test_connection_row_without_any_credentials_gives_clear_message(tmp_path, capsys):
-    params = {"destination_type": "queue", "entity_name": "q1"}
+def _run_test_connection_expecting_exit(tmp_path, params, capsys) -> str:
     _write_datadir(tmp_path, params, [], with_table=False, action="testConnection")
     with (
         mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client") as build,
         pytest.raises(SystemExit) as exc,
     ):
         Component().test_connection()
     assert exc.value.code == 1
-    assert "#row_connection_string" in capsys.readouterr().err
+    build.assert_not_called()
+    return capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        pytest.param({"auth_type": "connection_string", "#connection_string": ""}, id="root-without-entity"),
+        pytest.param({"destination_type": "queue", "entity_name": "q1"}, id="row-without-any-key"),
+        pytest.param(
+            {
+                "auth_type": "connection_string",
+                "destination_type": "queue",
+                "entity_name": "q1",
+                "#row_connection_string": "  ",
+            },
+            id="row-with-blank-key",
+        ),
+    ],
+)
+def test_test_connection_without_any_credentials_gives_exact_message(tmp_path, capsys, params):
+    err = _run_test_connection_expecting_exit(tmp_path, params, capsys)
+    assert NO_CREDENTIALS_TEXT in err
+    assert "configuration row" not in err
+
+
+def test_test_connection_with_root_credentials_but_no_entity_asks_for_a_row(tmp_path, capsys):
+    root_only = {"auth_type": "connection_string", "#connection_string": BASE_PARAMS["#connection_string"]}
+    err = _run_test_connection_expecting_exit(tmp_path, root_only, capsys)
+    assert "Run it from a configuration row" in err
+    assert NO_CREDENTIALS_TEXT not in err

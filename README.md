@@ -99,10 +99,15 @@ Test Connection
 
 The **Test Connection** sync action verifies the selected authentication method
 and reaches the target entity by opening the AMQP link, without sending any
-message. Use it to validate credentials and entity access before running. It
-probes one entity, so it needs a row's destination (and honors the row's connection
-string override); run from the configuration level alone, where no entity is known,
-it fails with a message to run it from a row.
+message. Use it to validate credentials and entity access before running. Each row
+form has a **Test Connection** button that checks the row's connection string
+override (or the configuration-level authentication when the row has none) against
+the row's topic or queue. It probes one entity, so it needs a row's destination; run
+from the configuration level alone, where no entity is known, it fails with a message
+to run it from a row. When no credentials are set at all (neither on the
+configuration nor on the row), it fails with: "No credentials are set on the
+configuration. If each row has its own row connection string, use Test Connection
+in that row."
 
 Output
 ======

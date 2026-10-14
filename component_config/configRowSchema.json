@@ -48,6 +48,17 @@
       },
       "propertyOrder": 25
     },
+    "test_connection": {
+      "type": "button",
+      "format": "test-connection",
+      "propertyOrder": 26,
+      "options": {
+        "async": {
+          "label": "Test Connection",
+          "action": "testConnection"
+        }
+      }
+    },
     "mode": {
       "type": "string",
       "title": "Message Body",

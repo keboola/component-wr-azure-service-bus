@@ -574,12 +574,23 @@
   },
   {
     "name": "27_testConnection_root_without_row",
-    "description": "testConnection from the root configuration (no entity, keys only on rows) fails with a clear message.",
+    "description": "testConnection from the root configuration with no credentials at all (keys only on rows) fails with exit 1 and the no-credentials message.",
     "config": {
       "action": "testConnection",
       "parameters": {
         "auth_type": "connection_string",
         "#connection_string": ""
+      }
+    }
+  },
+  {
+    "name": "28_testConnection_root_credentials_without_entity",
+    "description": "testConnection from the root configuration with root credentials but no entity asks to run it from a row.",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=root-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA="
       }
     }
   }

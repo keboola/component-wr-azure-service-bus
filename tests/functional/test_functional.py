@@ -326,6 +326,18 @@ def test_27_test_connection_root_without_row(mock_service_bus, tmp_path, monkeyp
         run_case("27_testConnection_root_without_row", tmp_path, monkeypatch)
     assert exc.value.code == 1
     err = capsys.readouterr().err
-    assert "configuration row" in err
-    assert "#row_connection_string" in err
+    assert (
+        "No credentials are set on the configuration. "
+        "If each row has its own row connection string, use Test Connection in that row."
+    ) in err
+    assert mock_service_bus.connection_string is None
+
+
+def test_28_test_connection_root_credentials_without_entity(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("28_testConnection_root_credentials_without_entity", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "Run it from a configuration row" in err
+    assert "No credentials are set" not in err
     assert mock_service_bus.connection_string is None

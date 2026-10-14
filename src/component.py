@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 # with sys.maxsize raises OverflowError on some platforms.
 csv.field_size_limit(128 * 1024 * 1024)  # 128 MB
 
+NO_CREDENTIALS_MESSAGE = (
+    "No credentials are set on the configuration. "
+    "If each row has its own row connection string, use Test Connection in that row."
+)
+
 
 class Component(ComponentBase):
     """Reads a Storage input table per config row and sends each row to Azure Service Bus."""
@@ -64,6 +69,8 @@ class Component(ComponentBase):
     def test_connection(self) -> ValidationResult:
         """Open a sender for the configured auth method and force the AMQP link open as an auth/connectivity probe."""
         parameters = self.configuration.parameters
+        if not Configuration.has_credentials(parameters):
+            raise UserException(NO_CREDENTIALS_MESSAGE)
         if not Configuration.has_destination(parameters):
             raise UserException(
                 "testConnection probes a specific topic or queue, so it needs the row's `destination_type` and "

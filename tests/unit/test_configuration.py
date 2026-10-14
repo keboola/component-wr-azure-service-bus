@@ -126,3 +126,29 @@ def test_missing_root_connection_string_error_mentions_row_key():
 def test_invalid_auth_type_still_rejected_with_row_key():
     with pytest.raises(UserException):
         Configuration(auth_type="bogus", **ROW_ONLY, **{"#row_connection_string": ROW_KEY})
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"#row_connection_string": ROW_KEY},
+        {"auth_type": "connection_string", "#connection_string": "Endpoint=sb://x/"},
+        {"auth_type": "service_principal", "tenant_id": "t"},
+        {"auth_type": "service_principal", "#client_secret": "s"},
+    ],
+)
+def test_has_credentials_true_when_any_credential_is_set(params):
+    assert Configuration.has_credentials(params) is True
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {},
+        {"auth_type": "connection_string"},
+        {"auth_type": "connection_string", "#connection_string": "", "#row_connection_string": "   "},
+        {"auth_type": "service_principal", "tenant_id": "", "client_id": None, **ROW_ONLY},
+    ],
+)
+def test_has_credentials_false_without_any_credential(params):
+    assert Configuration.has_credentials(params) is False
