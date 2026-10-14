@@ -112,7 +112,10 @@ def _to_number(text: str) -> str:
     stripped = text.strip()
     if not _NUMBER_RE.fullmatch(stripped):
         raise _Unconvertible("not a number")
-    number = Decimal(stripped)
+    try:
+        number = Decimal(stripped)
+    except ArithmeticError as e:
+        raise _Unconvertible("magnitude out of the supported range") from e
     if abs(number.adjusted()) > _MAX_ADJUSTED_EXPONENT:
         raise _Unconvertible("magnitude out of the supported range")
     return format(number, "f")

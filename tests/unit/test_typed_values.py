@@ -211,6 +211,8 @@ class TestConversionErrors:
             (NUM, "Infinity"),
             (NUM, "1_0.5"),
             (NUM, "1e99999999"),
+            (NUM, "1e9999999999999999999"),
+            (NUM, "1e-9999999999999999999"),
             (NUM, "1.2.3"),
             (BOOL, "maybe"),
             (BOOL, "2"),
