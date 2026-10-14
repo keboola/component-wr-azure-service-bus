@@ -35,6 +35,30 @@
       },
       "propertyOrder": 20
     },
+    "#row_connection_string": {
+      "type": "string",
+      "title": "Connection String (override)",
+      "description": "Optional. Overrides the configuration-level authentication for this row.",
+      "format": "password",
+      "options": {
+        "tooltip": "Use a connection string of a per-topic (entity-scoped) shared access policy. It may include `;EntityPath=<name>`, which must then match the Topic or Queue Name above. Leave empty to use the configuration-level authentication.",
+        "inputAttributes": {
+          "placeholder": "Endpoint=sb://<namespace>.servicebus.windows.net/;SharedAccessKeyName=<name>;SharedAccessKey=<key>;EntityPath=<topic>"
+        }
+      },
+      "propertyOrder": 25
+    },
+    "test_connection": {
+      "type": "button",
+      "format": "test-connection",
+      "propertyOrder": 26,
+      "options": {
+        "async": {
+          "label": "Test Connection",
+          "action": "testConnection"
+        }
+      }
+    },
     "mode": {
       "type": "string",
       "title": "Message Body",

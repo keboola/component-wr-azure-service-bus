@@ -17,6 +17,7 @@ sender fakes model the Standard-tier 256 KB message cap so the oversized-row
 fail-fast path is exercised for real.
 """
 
+import re
 from typing import Self
 
 import pytest
@@ -48,6 +49,7 @@ class Capture:
         self.closed = False
         self.namespace: str | None = None
         self.credential = None
+        self.connection_string: str | None = None
 
 
 class FakeBatch:
@@ -106,7 +108,14 @@ class FakeServiceBusClient:
     capture: Capture  # assigned per test by the mock_service_bus fixture
     max_bytes: int = STANDARD_TIER_CAP_BYTES
 
-    def __init__(self, fully_qualified_namespace: str | None = None, credential=None, **kwargs) -> None:
+    def __init__(
+        self,
+        fully_qualified_namespace: str | None = None,
+        credential=None,
+        entity_path: str | None = None,
+        **kwargs,
+    ) -> None:
+        self._entity_path = entity_path
         cap = type(self).capture
         if fully_qualified_namespace is not None:
             cap.namespace = fully_qualified_namespace
@@ -119,16 +128,24 @@ class FakeServiceBusClient:
         # connection), so a malformed connection string raises ValueError just
         # as in production; then discard the real client and return the fake.
         _RealServiceBusClient.from_connection_string(conn_str=conn_str, **kwargs).close()
-        return cls()
+        cls.capture.connection_string = conn_str
+        entity_path = re.search(r"EntityPath=([^;]+)", conn_str, re.IGNORECASE)
+        return cls(entity_path=entity_path.group(1) if entity_path else None)
+
+    def _check_entity_path(self, entity_name: str) -> None:
+        if self._entity_path and self._entity_path != entity_name:
+            raise ValueError("The EntityPath in the connection string does not match the entity name.")
 
     def _sender(self) -> FakeSender:
         return FakeSender(type(self).capture, type(self).max_bytes)
 
     def get_queue_sender(self, queue_name: str) -> FakeSender:
+        self._check_entity_path(queue_name)
         type(self).capture.opened_queue = queue_name
         return self._sender()
 
     def get_topic_sender(self, topic_name: str) -> FakeSender:
+        self._check_entity_path(topic_name)
         type(self).capture.opened_topic = topic_name
         return self._sender()
 

@@ -258,3 +258,86 @@ def test_19_run_column_value_custom_content_type(mock_service_bus, tmp_path, mon
     cap = mock_service_bus
     assert len(cap.messages) == 2
     assert all(m.content_type == "text/plain" for m in cap.messages)
+
+
+def test_20_run_row_connection_string_overrides_root(mock_service_bus, tmp_path, monkeypatch):
+    run_case("20_run_row_connection_string_overrides_root", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert "root-policy" not in cap.connection_string
+    assert cap.opened_topic == "row-topic"
+    assert len(cap.messages) == 3
+
+
+def test_21_run_row_connection_string_overrides_service_principal(mock_service_bus, tmp_path, monkeypatch):
+    run_case("21_run_row_connection_string_overrides_service_principal", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert cap.credential is None
+    assert cap.namespace is None
+    assert cap.opened_queue == "row-queue"
+    assert len(cap.messages) == 3
+
+
+def test_22_run_empty_row_connection_string_uses_root(mock_service_bus, tmp_path, monkeypatch):
+    run_case("22_run_empty_row_connection_string_uses_root", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "root-policy" in cap.connection_string
+    assert len(cap.messages) == 3
+
+
+def test_23_run_row_connection_string_without_root_auth(mock_service_bus, tmp_path, monkeypatch):
+    run_case("23_run_row_connection_string_without_root_auth", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert len(cap.messages) == 3
+
+
+def test_24_run_no_root_auth_no_row_key(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("24_run_no_root_auth_no_row_key", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "#row_connection_string" in err
+    assert mock_service_bus.connection_string is None
+
+
+def test_25_run_row_connection_string_entity_path_mismatch(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("25_run_row_connection_string_entity_path_mismatch", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "#row_connection_string" in err
+    assert "SharedAccessKey=ZmFr" not in err
+    assert mock_service_bus.messages == []
+
+
+def test_26_test_connection_row_connection_string(mock_service_bus, tmp_path, monkeypatch):
+    run_case("26_testConnection_row_connection_string", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert cap.opened_queue == "row-queue"
+    assert cap.batches_created >= 1
+    assert cap.closed is True
+
+
+def test_27_test_connection_root_without_row(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("27_testConnection_root_without_row", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert (
+        "No credentials are set on the configuration. "
+        "If each row has its own row connection string, use Test Connection in that row."
+    ) in err
+    assert mock_service_bus.connection_string is None
+
+
+def test_28_test_connection_root_credentials_without_entity(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("28_testConnection_root_credentials_without_entity", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "Run it from a configuration row" in err
+    assert "No credentials are set" not in err
+    assert mock_service_bus.connection_string is None

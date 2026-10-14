@@ -259,3 +259,144 @@ def test_run_csv_field_error_becomes_user_exception(tmp_path):
             _run(tmp_path, BASE_PARAMS, [{"a": "y" * 5000, "b": "z"}])
     finally:
         csv.field_size_limit(original)
+
+
+ROW_KEY = "Endpoint=sb://rowns/;SharedAccessKeyName=rk;SharedAccessKey=ROWSECRET;EntityPath=q1"
+
+
+def _run_capturing_config(tmp_path, params, rows):
+    _write_datadir(tmp_path, params, rows)
+    fake_client = FakeClient()
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=fake_client) as build,
+    ):
+        Component().run()
+    return fake_client, build.call_args.args[0]
+
+
+def test_run_row_connection_string_is_passed_to_client_builder(tmp_path):
+    params = {**BASE_PARAMS, "#row_connection_string": ROW_KEY}
+    client, config = _run_capturing_config(tmp_path, params, [{"a": "1", "b": "x"}])
+    assert config.row_connection_string == ROW_KEY
+    assert len(client.sender.sent) == 1
+
+
+def test_run_without_row_connection_string_is_unchanged(tmp_path):
+    _, config = _run_capturing_config(tmp_path, BASE_PARAMS, [{"a": "1", "b": "x"}])
+    assert config.row_connection_string == ""
+    assert config.connection_string == BASE_PARAMS["#connection_string"]
+
+
+def test_run_with_neither_root_auth_nor_row_key_raises_user_exception(tmp_path):
+    params = {"destination_type": "queue", "entity_name": "q1"}
+    _write_datadir(tmp_path, params, [{"a": "1", "b": "x"}])
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        pytest.raises(UserException) as exc,
+    ):
+        Component().run()
+    assert "#row_connection_string" in str(exc.value)
+
+
+def _mismatch_client():
+    class MismatchClient:
+        def get_queue_sender(self, queue_name):
+            raise ValueError("The EntityPath in the connection string does not match the queue name.")
+
+        def get_topic_sender(self, topic_name):
+            raise ValueError("mismatch")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    return MismatchClient()
+
+
+def test_run_entity_path_mismatch_with_row_key_names_the_row_field(tmp_path):
+    params = {**BASE_PARAMS, "#row_connection_string": ROW_KEY}
+    _write_datadir(tmp_path, params, [{"a": "1", "b": "x"}])
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=_mismatch_client()),
+        pytest.raises(UserException) as exc,
+    ):
+        Component().run()
+    assert "#row_connection_string" in str(exc.value)
+    assert "ROWSECRET" not in str(exc.value)
+
+
+def test_run_entity_path_mismatch_with_root_key_does_not_mention_row_field(tmp_path):
+    _write_datadir(tmp_path, BASE_PARAMS, [{"a": "1", "b": "x"}])
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=_mismatch_client()),
+        pytest.raises(UserException) as exc,
+    ):
+        Component().run()
+    assert "#row_connection_string" not in str(exc.value)
+
+
+def test_test_connection_uses_row_connection_string(tmp_path):
+    params = {"destination_type": "queue", "entity_name": "q1", "#row_connection_string": ROW_KEY}
+    _write_datadir(tmp_path, params, [], with_table=False, action="testConnection")
+    fake_client = FakeClient()
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client", return_value=fake_client) as build,
+    ):
+        result = Component().test_connection()
+    assert build.call_args.args[0].row_connection_string == ROW_KEY
+    assert fake_client.opened_queue == "q1"
+    assert "succeeded" in result.message.lower()
+
+
+NO_CREDENTIALS_TEXT = (
+    "No credentials are set on the configuration. "
+    "If each row has its own row connection string, use Test Connection in that row."
+)
+
+
+def _run_test_connection_expecting_exit(tmp_path, params, capsys) -> str:
+    _write_datadir(tmp_path, params, [], with_table=False, action="testConnection")
+    with (
+        mock.patch.dict(os.environ, {"KBC_DATADIR": str(tmp_path)}),
+        mock.patch.object(component_mod, "build_service_bus_client") as build,
+        pytest.raises(SystemExit) as exc,
+    ):
+        Component().test_connection()
+    assert exc.value.code == 1
+    build.assert_not_called()
+    return capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        pytest.param({"auth_type": "connection_string", "#connection_string": ""}, id="root-without-entity"),
+        pytest.param({"destination_type": "queue", "entity_name": "q1"}, id="row-without-any-key"),
+        pytest.param(
+            {
+                "auth_type": "connection_string",
+                "destination_type": "queue",
+                "entity_name": "q1",
+                "#row_connection_string": "  ",
+            },
+            id="row-with-blank-key",
+        ),
+    ],
+)
+def test_test_connection_without_any_credentials_gives_exact_message(tmp_path, capsys, params):
+    err = _run_test_connection_expecting_exit(tmp_path, params, capsys)
+    assert NO_CREDENTIALS_TEXT in err
+    assert "configuration row" not in err
+
+
+def test_test_connection_with_root_credentials_but_no_entity_asks_for_a_row(tmp_path, capsys):
+    root_only = {"auth_type": "connection_string", "#connection_string": BASE_PARAMS["#connection_string"]}
+    err = _run_test_connection_expecting_exit(tmp_path, root_only, capsys)
+    assert "Run it from a configuration row" in err
+    assert NO_CREDENTIALS_TEXT not in err
