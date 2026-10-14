@@ -1,0 +1,7 @@
+{
+  "id": "in.c-test.typed_empty_cell",
+  "schema": [
+    {"name": "id", "data_type": {"base": {"type": "INTEGER"}}},
+    {"name": "price", "data_type": {"base": {"type": "NUMERIC"}}}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "in.c-test.typed",
+  "schema": [
+    {"name": "id", "data_type": {"base": {"type": "INTEGER"}}},
+    {"name": "price", "data_type": {"base": {"type": "NUMERIC", "length": "38,18"}}},
+    {"name": "ratio", "data_type": {"base": {"type": "FLOAT"}}},
+    {"name": "active", "data_type": {"base": {"type": "BOOLEAN"}}},
+    {"name": "name", "data_type": {"base": {"type": "STRING"}}},
+    {"name": "created", "data_type": {"base": {"type": "TIMESTAMP"}}},
+    {"name": "note", "data_type": {"base": {"type": "STRING"}}}
+  ]
+}

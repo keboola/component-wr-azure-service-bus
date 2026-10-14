@@ -9,6 +9,7 @@ network is touched and no cassettes are recorded (the send path is AMQP, not
 HTTP, so vcrpy cannot record it).
 """
 
+import csv
 import json
 import shutil
 from pathlib import Path
@@ -35,6 +36,9 @@ def _build_datadir(case_name: str, tmp_path: Path) -> Path:
     for table in config.get("storage", {}).get("input", {}).get("tables", []):
         dest = table["destination"]
         shutil.copy(INPUT_FILES_DIR / dest, data_dir / "in" / "tables" / dest)
+        manifest = INPUT_FILES_DIR / f"{dest}.manifest"
+        if manifest.exists():
+            shutil.copy(manifest, data_dir / "in" / "tables" / manifest.name)
     return data_dir
 
 
@@ -341,3 +345,83 @@ def test_28_test_connection_root_credentials_without_entity(mock_service_bus, tm
     assert "Run it from a configuration row" in err
     assert "No credentials are set" not in err
     assert mock_service_bus.connection_string is None
+
+
+def test_29_run_typed_from_table_types(mock_service_bus, tmp_path, monkeypatch):
+    run_case("29_run_typed_from_table_types", tmp_path, monkeypatch)
+    bodies = _bodies(mock_service_bus)
+    assert bodies == [
+        (
+            '{"id": 1, "price": 1.89, "ratio": 0.5, "active": true, "name": "alpha", '
+            '"created": "2026-01-01 10:00:00", "note": null}'
+        ),
+        (
+            '{"id": 2, "price": 12345678901234567890.123456789012345678, "ratio": 0.0000001, "active": false, '
+            '"name": "Košík", "created": "2026-01-02 11:30:00", "note": "hello"}'
+        ),
+        '{"id": null, "price": null, "ratio": null, "active": null, "name": null, "created": null, "note": null}',
+    ]
+    assert all(m.content_type == "application/json" for m in mock_service_bus.messages)
+
+
+def test_30_run_typed_legacy_manifest(mock_service_bus, tmp_path, monkeypatch):
+    run_case("30_run_typed_legacy_manifest", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus) == ['{"id": 7, "price": 2.50, "active": true, "name": "gamma"}']
+
+
+def test_31_run_typed_overrides_untyped_table(mock_service_bus, tmp_path, monkeypatch):
+    run_case("31_run_typed_overrides_untyped_table", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus) == [
+        '{"id": 1, "price": 9.99, "zip": "01234", "flag": true}',
+        '{"id": 2, "price": 10, "zip": "98765", "flag": false}',
+    ]
+
+
+def test_32_run_typed_bad_value(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("32_run_typed_bad_value", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "'abc'" in err
+    assert "column 'price'" in err
+    assert "row 2" in err
+
+
+def test_33_run_typed_empty_cell_without_null_flag(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("33_run_typed_empty_cell_without_null_flag", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "Empty value" in err
+    assert "column 'price'" in err
+    assert "row 2" in err
+
+
+def test_34_run_typed_override_missing_column(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("34_run_typed_override_missing_column", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    assert "does_not_exist" in capsys.readouterr().err
+    assert mock_service_bus.messages == []
+
+
+def test_35_run_string_typing_default_ignores_manifest(mock_service_bus, tmp_path, monkeypatch):
+    run_case("35_run_string_typing_default_ignores_manifest", tmp_path, monkeypatch)
+    with open(INPUT_FILES_DIR / "typed.csv", newline="", encoding="utf-8") as f:
+        expected = [json.dumps(row, ensure_ascii=False) for row in csv.DictReader(f)]
+    assert _bodies(mock_service_bus) == expected
+    assert expected[0].startswith('{"id": "1", "price": "1.89"')
+
+
+def test_36_run_string_typing_empty_as_null(mock_service_bus, tmp_path, monkeypatch):
+    run_case("36_run_string_typing_empty_as_null", tmp_path, monkeypatch)
+    bodies = _bodies(mock_service_bus)
+    assert json.loads(bodies[0])["note"] is None
+    assert json.loads(bodies[0])["id"] == "1"
+    assert json.loads(bodies[2]) == dict.fromkeys(["id", "price", "ratio", "active", "name", "created", "note"])
+
+
+def test_37_run_typed_untyped_table_without_overrides(mock_service_bus, tmp_path, monkeypatch, caplog):
+    run_case("37_run_typed_untyped_table_without_overrides", tmp_path, monkeypatch)
+    assert _bodies(mock_service_bus)[0] == '{"id": "1", "price": "9.99", "zip": "01234", "flag": "yes"}'
+    assert any("no column resolved to a non-string type" in r.getMessage() for r in caplog.records)

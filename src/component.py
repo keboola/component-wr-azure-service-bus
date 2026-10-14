@@ -19,9 +19,10 @@ from keboola.component.exceptions import UserException
 from keboola.component.sync_actions import MessageType, ValidationResult
 
 from client import build_service_bus_client, redact_secrets, to_user_exception
-from configuration import Configuration, DestinationType
+from configuration import Configuration, DestinationType, JsonValueType, ValueTyping
 from message_builder import build_message, required_columns
 from sender import MessageSender
+from typed_values import resolve_column_types
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +50,12 @@ class Component(ComponentBase):
         config = Configuration(**self.configuration.parameters)
         table = self._resolve_input_table()
         self._validate_columns(table, config)
+        column_types = resolve_column_types(table, config)
+        self._log_value_typing(config, column_types)
         with build_service_bus_client(config) as client:
             message_sender = MessageSender(self._open_sender(client, config), config.batch_size, config.entity_name)
             try:
-                sent = message_sender.send(self._iter_messages(table, config))
+                sent = message_sender.send(self._iter_messages(table, config, column_types))
             except Exception:
                 # Some messages may already be on the broker; a Keboola re-run resends them.
                 logger.warning(
@@ -111,6 +114,19 @@ class Component(ComponentBase):
             )
 
     @staticmethod
+    def _log_value_typing(config: Configuration, column_types: dict[str, JsonValueType]) -> None:
+        if config.value_typing != ValueTyping.TYPED:
+            return
+        if not column_types:
+            logger.warning(
+                "Typed JSON values are enabled but no column resolved to a non-string type, so every value is "
+                "written as a string. Check the input table's data types or set Column Type Overrides."
+            )
+            return
+        typed = ", ".join(f"{name}={json_type}" for name, json_type in column_types.items())
+        logger.info("Typed JSON values; non-string columns: %s.", typed)
+
+    @staticmethod
     def _open_sender(client: ServiceBusClient, config: Configuration) -> ServiceBusSender:
         try:
             if config.destination_type == DestinationType.TOPIC:
@@ -134,12 +150,14 @@ class Component(ComponentBase):
             ) from e
 
     @staticmethod
-    def _iter_messages(table: TableDefinition, config: Configuration) -> Iterator[ServiceBusMessage]:
+    def _iter_messages(
+        table: TableDefinition, config: Configuration, column_types: dict[str, JsonValueType]
+    ) -> Iterator[ServiceBusMessage]:
         with open(table.full_path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             try:
-                for row in reader:
-                    yield build_message(row, config)
+                for row_number, row in enumerate(reader, start=1):
+                    yield build_message(row, config, column_types, row_number)
             except csv.Error as e:
                 raise UserException(
                     f"Failed to parse the input table '{table.name}': {e}. A cell may exceed the CSV field size limit."

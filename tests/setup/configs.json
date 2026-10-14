@@ -593,5 +593,254 @@
         "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=root-policy;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA="
       }
     }
+  },
+  {
+    "name": "29_run_typed_from_table_types",
+    "description": "Typed values from the input manifest's base types; empty cells as null.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed",
+        "empty_as_null": true
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.typed",
+              "destination": "typed.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "30_run_typed_legacy_manifest",
+    "description": "Typed values read from legacy KBC.datatype.basetype column metadata.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.typed_legacy",
+              "destination": "typed_legacy.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "31_run_typed_overrides_untyped_table",
+    "description": "Per-column overrides on a table without data types.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed",
+        "column_types": [
+          {
+            "column": "id",
+            "type": "integer"
+          },
+          {
+            "column": "price",
+            "type": "number"
+          },
+          {
+            "column": "flag",
+            "type": "boolean"
+          },
+          {
+            "column": "zip",
+            "type": "string"
+          }
+        ]
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.untyped",
+              "destination": "untyped.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "32_run_typed_bad_value",
+    "description": "A value that cannot be converted fails the run with column and row.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.typed_bad_value",
+              "destination": "typed_bad_value.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "33_run_typed_empty_cell_without_null_flag",
+    "description": "An empty cell in a numeric column without empty_as_null fails the run.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.typed_empty_cell",
+              "destination": "typed_empty_cell.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "34_run_typed_override_missing_column",
+    "description": "An override on a column absent from the table fails fast.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed",
+        "column_types": [
+          {
+            "column": "does_not_exist",
+            "type": "integer"
+          }
+        ]
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.untyped",
+              "destination": "untyped.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "35_run_string_typing_default_ignores_manifest",
+    "description": "Default string typing ignores the manifest data types.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.typed",
+              "destination": "typed.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "36_run_string_typing_empty_as_null",
+    "description": "String typing with empty_as_null only nulls the empty cells.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "empty_as_null": true
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.typed",
+              "destination": "typed.csv"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "37_run_typed_untyped_table_without_overrides",
+    "description": "Typed values on a table without data types and no overrides: all strings plus a warning.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "auth_type": "connection_string",
+        "#connection_string": "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZWtleWZha2VrZXlmYWtla2V5ZmFrZWtleTEyMzQ1Njc4OTA=",
+        "destination_type": "queue",
+        "entity_name": "typed-queue",
+        "mode": "row_as_json",
+        "value_typing": "typed"
+      },
+      "storage": {
+        "input": {
+          "tables": [
+            {
+              "source": "in.c-test.untyped",
+              "destination": "untyped.csv"
+            }
+          ]
+        }
+      }
+    }
   }
 ]

@@ -1,0 +1,4 @@
+id,price,ratio,active,name,created,note
+1,1.89,0.5,true,alpha,2026-01-01 10:00:00,
+2,12345678901234567890.123456789012345678,1e-7,false,Košík,2026-01-02 11:30:00,hello
+,,,,,,

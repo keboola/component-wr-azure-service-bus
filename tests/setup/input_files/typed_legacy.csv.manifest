@@ -1,0 +1,11 @@
+{
+  "id": "in.c-test.typed_legacy",
+  "columns": ["id", "price", "active", "name"],
+  "primary_key": [],
+  "column_metadata": {
+    "id": [{"key": "KBC.datatype.basetype", "value": "INTEGER"}],
+    "price": [{"key": "KBC.datatype.basetype", "value": "NUMERIC"}],
+    "active": [{"key": "KBC.datatype.basetype", "value": "BOOLEAN"}],
+    "name": [{"key": "KBC.datatype.basetype", "value": "STRING"}]
+  }
+}

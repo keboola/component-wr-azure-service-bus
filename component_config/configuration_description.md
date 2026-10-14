@@ -7,6 +7,6 @@ Set once for the whole configuration. Choose **Connection string (SAS)** or **Se
 Each row sends one input table to one topic or queue:
 
 - **Destination type & name** — the target topic or queue, which must already exist in the namespace.
-- **Message body** — the whole row as a UTF-8 JSON object, or a single column's raw value. Content type is always `application/json` for whole-row mode and settable for single-column mode.
+- **Message body** — the whole row as a UTF-8 JSON object, or a single column's raw value. Content type is always `application/json` for whole-row mode and settable for single-column mode. Whole-row mode can optionally write typed JSON values (integers, numbers, booleans) from the input table's column data types, with per-column overrides and an opt-in "Empty cells as null" switch.
 - **Message properties** — optional mapping of input columns onto broker properties (message ID, session ID, subject, correlation ID, partition key, scheduled enqueue time, reply-to, application properties). A blank cell skips that property for the row.
 - **Delivery** — batch size. Message expiry follows the destination entity's own default TTL; the writer sets no per-message TTL.
