@@ -1,6 +1,6 @@
 ### Authentication
 
-Set once for the whole configuration. Choose **Connection string (SAS)** or **Service principal (Entra ID)**, then fill in the fields for that method.
+Set once for the whole configuration. Choose **Connection string (SAS)** or **Service principal (Entra ID)**, then fill in the fields for that method. A row can override this with its own connection string (for example a per-topic shared access policy); leave it empty to use this authentication.
 
 ### Destination mapping (per row)
 

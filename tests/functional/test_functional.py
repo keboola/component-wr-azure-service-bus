@@ -264,8 +264,91 @@ def test_19_run_column_value_custom_content_type(mock_service_bus, tmp_path, mon
     assert all(m.content_type == "text/plain" for m in cap.messages)
 
 
-def test_20_run_typed_from_table_types(mock_service_bus, tmp_path, monkeypatch):
-    run_case("20_run_typed_from_table_types", tmp_path, monkeypatch)
+def test_20_run_row_connection_string_overrides_root(mock_service_bus, tmp_path, monkeypatch):
+    run_case("20_run_row_connection_string_overrides_root", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert "root-policy" not in cap.connection_string
+    assert cap.opened_topic == "row-topic"
+    assert len(cap.messages) == 3
+
+
+def test_21_run_row_connection_string_overrides_service_principal(mock_service_bus, tmp_path, monkeypatch):
+    run_case("21_run_row_connection_string_overrides_service_principal", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert cap.credential is None
+    assert cap.namespace is None
+    assert cap.opened_queue == "row-queue"
+    assert len(cap.messages) == 3
+
+
+def test_22_run_empty_row_connection_string_uses_root(mock_service_bus, tmp_path, monkeypatch):
+    run_case("22_run_empty_row_connection_string_uses_root", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "root-policy" in cap.connection_string
+    assert len(cap.messages) == 3
+
+
+def test_23_run_row_connection_string_without_root_auth(mock_service_bus, tmp_path, monkeypatch):
+    run_case("23_run_row_connection_string_without_root_auth", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert len(cap.messages) == 3
+
+
+def test_24_run_no_root_auth_no_row_key(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("24_run_no_root_auth_no_row_key", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "#row_connection_string" in err
+    assert mock_service_bus.connection_string is None
+
+
+def test_25_run_row_connection_string_entity_path_mismatch(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("25_run_row_connection_string_entity_path_mismatch", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "#row_connection_string" in err
+    assert "SharedAccessKey=ZmFr" not in err
+    assert mock_service_bus.messages == []
+
+
+def test_26_test_connection_row_connection_string(mock_service_bus, tmp_path, monkeypatch):
+    run_case("26_testConnection_row_connection_string", tmp_path, monkeypatch)
+    cap = mock_service_bus
+    assert "row-policy" in cap.connection_string
+    assert cap.opened_queue == "row-queue"
+    assert cap.batches_created >= 1
+    assert cap.closed is True
+
+
+def test_27_test_connection_root_without_row(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("27_testConnection_root_without_row", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert (
+        "No credentials are set on the configuration. "
+        "If each row has its own row connection string, use Test Connection in that row."
+    ) in err
+    assert mock_service_bus.connection_string is None
+
+
+def test_28_test_connection_root_credentials_without_entity(mock_service_bus, tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as exc:
+        run_case("28_testConnection_root_credentials_without_entity", tmp_path, monkeypatch)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "Run it from a configuration row" in err
+    assert "No credentials are set" not in err
+    assert mock_service_bus.connection_string is None
+
+
+def test_29_run_typed_from_table_types(mock_service_bus, tmp_path, monkeypatch):
+    run_case("29_run_typed_from_table_types", tmp_path, monkeypatch)
     bodies = _bodies(mock_service_bus)
     assert bodies == [
         (
@@ -281,22 +364,22 @@ def test_20_run_typed_from_table_types(mock_service_bus, tmp_path, monkeypatch):
     assert all(m.content_type == "application/json" for m in mock_service_bus.messages)
 
 
-def test_21_run_typed_legacy_manifest(mock_service_bus, tmp_path, monkeypatch):
-    run_case("21_run_typed_legacy_manifest", tmp_path, monkeypatch)
+def test_30_run_typed_legacy_manifest(mock_service_bus, tmp_path, monkeypatch):
+    run_case("30_run_typed_legacy_manifest", tmp_path, monkeypatch)
     assert _bodies(mock_service_bus) == ['{"id": 7, "price": 2.50, "active": true, "name": "gamma"}']
 
 
-def test_22_run_typed_overrides_untyped_table(mock_service_bus, tmp_path, monkeypatch):
-    run_case("22_run_typed_overrides_untyped_table", tmp_path, monkeypatch)
+def test_31_run_typed_overrides_untyped_table(mock_service_bus, tmp_path, monkeypatch):
+    run_case("31_run_typed_overrides_untyped_table", tmp_path, monkeypatch)
     assert _bodies(mock_service_bus) == [
         '{"id": 1, "price": 9.99, "zip": "01234", "flag": true}',
         '{"id": 2, "price": 10, "zip": "98765", "flag": false}',
     ]
 
 
-def test_23_run_typed_bad_value(mock_service_bus, tmp_path, monkeypatch, capsys):
+def test_32_run_typed_bad_value(mock_service_bus, tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
-        run_case("23_run_typed_bad_value", tmp_path, monkeypatch)
+        run_case("32_run_typed_bad_value", tmp_path, monkeypatch)
     assert exc.value.code == 1
     err = capsys.readouterr().err
     assert "'abc'" in err
@@ -304,9 +387,9 @@ def test_23_run_typed_bad_value(mock_service_bus, tmp_path, monkeypatch, capsys)
     assert "row 2" in err
 
 
-def test_24_run_typed_empty_cell_without_null_flag(mock_service_bus, tmp_path, monkeypatch, capsys):
+def test_33_run_typed_empty_cell_without_null_flag(mock_service_bus, tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
-        run_case("24_run_typed_empty_cell_without_null_flag", tmp_path, monkeypatch)
+        run_case("33_run_typed_empty_cell_without_null_flag", tmp_path, monkeypatch)
     assert exc.value.code == 1
     err = capsys.readouterr().err
     assert "Empty value" in err
@@ -314,31 +397,31 @@ def test_24_run_typed_empty_cell_without_null_flag(mock_service_bus, tmp_path, m
     assert "row 2" in err
 
 
-def test_25_run_typed_override_missing_column(mock_service_bus, tmp_path, monkeypatch, capsys):
+def test_34_run_typed_override_missing_column(mock_service_bus, tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
-        run_case("25_run_typed_override_missing_column", tmp_path, monkeypatch)
+        run_case("34_run_typed_override_missing_column", tmp_path, monkeypatch)
     assert exc.value.code == 1
     assert "does_not_exist" in capsys.readouterr().err
     assert mock_service_bus.messages == []
 
 
-def test_26_run_string_typing_default_ignores_manifest(mock_service_bus, tmp_path, monkeypatch):
-    run_case("26_run_string_typing_default_ignores_manifest", tmp_path, monkeypatch)
+def test_35_run_string_typing_default_ignores_manifest(mock_service_bus, tmp_path, monkeypatch):
+    run_case("35_run_string_typing_default_ignores_manifest", tmp_path, monkeypatch)
     with open(INPUT_FILES_DIR / "typed.csv", newline="", encoding="utf-8") as f:
         expected = [json.dumps(row, ensure_ascii=False) for row in csv.DictReader(f)]
     assert _bodies(mock_service_bus) == expected
     assert expected[0].startswith('{"id": "1", "price": "1.89"')
 
 
-def test_27_run_string_typing_empty_as_null(mock_service_bus, tmp_path, monkeypatch):
-    run_case("27_run_string_typing_empty_as_null", tmp_path, monkeypatch)
+def test_36_run_string_typing_empty_as_null(mock_service_bus, tmp_path, monkeypatch):
+    run_case("36_run_string_typing_empty_as_null", tmp_path, monkeypatch)
     bodies = _bodies(mock_service_bus)
     assert json.loads(bodies[0])["note"] is None
     assert json.loads(bodies[0])["id"] == "1"
     assert json.loads(bodies[2]) == dict.fromkeys(["id", "price", "ratio", "active", "name", "created", "note"])
 
 
-def test_28_run_typed_untyped_table_without_overrides(mock_service_bus, tmp_path, monkeypatch, caplog):
-    run_case("28_run_typed_untyped_table_without_overrides", tmp_path, monkeypatch)
+def test_37_run_typed_untyped_table_without_overrides(mock_service_bus, tmp_path, monkeypatch, caplog):
+    run_case("37_run_typed_untyped_table_without_overrides", tmp_path, monkeypatch)
     assert _bodies(mock_service_bus)[0] == '{"id": "1", "price": "9.99", "zip": "01234", "flag": "yes"}'
     assert any("no column resolved to a non-string type" in r.getMessage() for r in caplog.records)

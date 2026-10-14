@@ -17,8 +17,9 @@ over the AMQP protocol. The target topic or queue must already exist in the
 namespace — the writer does not create it.
 
 Configuration is **row-based**: the connection to the namespace is set once at the
-configuration level, and each row maps one input table to one destination entity
-with its own body, property, and delivery settings.
+configuration level (optionally overridden per row, see below), and each row maps one
+input table to one destination entity with its own body, property, and delivery
+settings.
 
 Prerequisites
 =============
@@ -31,13 +32,30 @@ Prerequisites
 Authentication
 ==============
 
-Set once for the whole configuration. Choose one method:
+Set once for the whole configuration (a row may override it, see below). Choose
+one method:
 
 - **Connection string (SAS)** — a shared access signature connection string for
   the namespace or entity, with Send rights.
 - **Service principal (Entra ID)** — a Microsoft Entra ID application identity:
   tenant ID, client ID, client secret, and the fully qualified namespace host
   name (e.g. `my-namespace.servicebus.windows.net`).
+
+### Per-row connection string
+
+A row can carry its own **Connection String (override)** (`#row_connection_string`,
+encrypted). When it is set, it replaces the configuration-level authentication for
+that row only, whichever method the configuration uses. When it is empty, the row
+uses the configuration-level authentication exactly as before.
+
+This lets you use a separate, entity-scoped shared access policy per topic or queue
+(a connection string ending in `;EntityPath=<name>`), so a leaked key cannot reach
+other entities, while keeping all topics in one configuration. If the connection
+string carries an `EntityPath`, it must match the row's **Topic or Queue Name**.
+
+The configuration-level authentication is only required for rows that do not provide
+their own connection string. If a row has neither, the run fails with a message
+asking for one of the two.
 
 Configuration
 =============
@@ -144,7 +162,15 @@ Test Connection
 
 The **Test Connection** sync action verifies the selected authentication method
 and reaches the target entity by opening the AMQP link, without sending any
-message. Use it to validate credentials and entity access before running.
+message. Use it to validate credentials and entity access before running. Each row
+form has a **Test Connection** button that checks the row's connection string
+override (or the configuration-level authentication when the row has none) against
+the row's topic or queue. It probes one entity, so it needs a row's destination; run
+from the configuration level alone, where no entity is known, it fails with a message
+to run it from a row. When no credentials are set at all (neither on the
+configuration nor on the row), it fails with: "No credentials are set on the
+configuration. If each row has its own row connection string, use Test Connection
+in that row."
 
 Output
 ======

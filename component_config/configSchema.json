@@ -8,7 +8,7 @@
     "auth_type": {
       "type": "string",
       "title": "Authentication Type",
-      "description": "How the writer authenticates to Azure Service Bus",
+      "description": "How the writer authenticates to Azure Service Bus. A row can override this with its own connection string.",
       "enum": [
         "connection_string",
         "service_principal"
@@ -25,10 +25,10 @@
     "#connection_string": {
       "type": "string",
       "title": "Connection String",
-      "description": "Shared access signature connection string",
+      "description": "Shared access signature connection string. Can be left empty if every row provides its own connection string.",
       "format": "password",
       "options": {
-        "tooltip": "Found in the Azure Portal under the namespace's **Shared access policies** (e.g. `RootManageSharedAccessKey`) — copy the **Connection string–primary key** value.",
+        "tooltip": "Found in the Azure Portal under the namespace's **Shared access policies** (e.g. `RootManageSharedAccessKey`) — copy the **Connection string–primary key** value. Can be left empty when every row provides its own connection string override.",
         "inputAttributes": {
           "placeholder": "Endpoint=sb://<namespace>.servicebus.windows.net/;SharedAccessKeyName=<name>;SharedAccessKey=<key>"
         },

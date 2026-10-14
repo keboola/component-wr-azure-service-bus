@@ -4,6 +4,8 @@ Keboola merges the config-root (auth) parameters and the config-row (destination
 mapping) parameters into a single flat ``parameters`` dict, so ``Configuration``
 is a flat model. Each auth field is optional at the schema level and required
 only for its ``auth_type`` -- enforced by :meth:`Configuration._validate_auth`.
+The row-level ``#row_connection_string`` has its own name so it never collides with
+the root ``#connection_string`` in the merged dict.
 The pluggable credential factory lives in ``client.py``; this model only carries
 the fields and validates them.
 """
@@ -13,7 +15,7 @@ from enum import StrEnum
 from typing import Any, Self
 
 from keboola.component.exceptions import UserException
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +68,24 @@ class MessagePropertyMap(BaseModel):
     reply_to_session_id_column: str | None = None
 
 
+CREDENTIAL_KEYS = (
+    "#row_connection_string",
+    "#connection_string",
+    "tenant_id",
+    "client_id",
+    "#client_secret",
+    "fully_qualified_namespace",
+)
+
+
+def _is_set(value: Any) -> bool:
+    return bool(value.strip()) if isinstance(value, str) else value is not None
+
+
 class Configuration(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
-    auth_type: AuthType
+    auth_type: AuthType | None = None
 
     # --- Auth block (config root). Required-per-auth_type, see _validate_auth. ---
     connection_string: str = Field(alias="#connection_string", default="")
@@ -81,6 +97,7 @@ class Configuration(BaseModel):
     # --- Destination mapping (config row). ---
     destination_type: DestinationType
     entity_name: str
+    row_connection_string: str = Field(alias="#row_connection_string", default="")
     mode: BodyMode = BodyMode.ROW_AS_JSON
     column: str | None = None
     content_type: str = "application/json"
@@ -99,6 +116,21 @@ class Configuration(BaseModel):
                 loc = ".".join(str(part) for part in err["loc"]) if err["loc"] else "configuration"
                 messages.append(f"{loc}: {err['msg']}")
             raise UserException(f"Validation Error: {', '.join(messages)}") from e
+
+    @staticmethod
+    def has_destination(parameters: dict[str, Any]) -> bool:
+        return bool(parameters.get("entity_name"))
+
+    @staticmethod
+    def has_credentials(parameters: dict[str, Any]) -> bool:
+        return any(_is_set(parameters.get(key)) for key in CREDENTIAL_KEYS)
+
+    @field_validator("row_connection_string", mode="before")
+    @classmethod
+    def _normalize_row_connection_string(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        return value.strip() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def _validate_body_mode(self) -> Self:
@@ -131,8 +163,18 @@ class Configuration(BaseModel):
 
     @model_validator(mode="after")
     def _validate_auth(self) -> Self:
+        if self.row_connection_string:
+            return self
+        if self.auth_type is None:
+            raise ValueError(
+                "No credentials configured: set the authentication on the configuration "
+                "(`auth_type` and its fields) or provide `#row_connection_string` on the row."
+            )
         if self.auth_type == AuthType.CONNECTION_STRING and not self.connection_string:
-            raise ValueError("`#connection_string` is required for connection_string auth.")
+            raise ValueError(
+                "`#connection_string` is required for connection_string auth "
+                "(or provide `#row_connection_string` on the row)."
+            )
         if self.auth_type == AuthType.SERVICE_PRINCIPAL:
             required = {
                 "tenant_id": self.tenant_id,

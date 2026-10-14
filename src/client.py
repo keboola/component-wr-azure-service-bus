@@ -55,11 +55,15 @@ def to_user_exception(error: ServiceBusError, entity_name: str | None = None) ->
     return UserException(f"{message} (details: {detail})")
 
 
-def _build_from_connection_string(config: Configuration) -> ServiceBusClient:
+def _connect_with_string(connection_string: str, label: str) -> ServiceBusClient:
     try:
-        return ServiceBusClient.from_connection_string(conn_str=config.connection_string)
+        return ServiceBusClient.from_connection_string(conn_str=connection_string)
     except ValueError as e:
-        raise UserException(f"Invalid connection string: {redact_secrets(str(e))}") from e
+        raise UserException(f"Invalid {label}: {redact_secrets(str(e))}") from e
+
+
+def _build_from_connection_string(config: Configuration) -> ServiceBusClient:
+    return _connect_with_string(config.connection_string, "connection string")
 
 
 def _build_from_service_principal(config: Configuration) -> ServiceBusClient:
@@ -78,6 +82,9 @@ _BUILDERS: dict[AuthType, Callable[[Configuration], ServiceBusClient]] = {
 
 def build_service_bus_client(config: Configuration) -> ServiceBusClient:
     """Build a ServiceBusClient for the configured auth method (pyamqp; uamqp_transport never set)."""
+    if config.row_connection_string:
+        logger.info("Using the row-level connection string; it overrides the configuration-level authentication.")
+        return _connect_with_string(config.row_connection_string, "row connection string (#row_connection_string)")
     builder = _BUILDERS.get(config.auth_type)
     if builder is None:
         raise UserException(f"Unsupported auth_type: {config.auth_type}")
