@@ -111,7 +111,7 @@
           "All values as strings",
           "Typed from column data types"
         ],
-        "tooltip": "All values as strings writes every value as a JSON string. Typed from column data types uses the input table's column data types: INTEGER becomes a JSON integer, NUMERIC and FLOAT become a JSON number (exact decimal text, never rounded through float), BOOLEAN becomes a JSON boolean, and everything else (STRING, DATE, TIMESTAMP, unknown) becomes a string. Tables without data types have only string columns — use the Column Type Overrides below to set their types.",
+        "tooltip": "All values as strings writes every value as a JSON string. Typed from column data types uses the input table's column data types: INTEGER becomes a JSON integer, NUMERIC and FLOAT become a JSON number (every digit and trailing zeros kept, never rounded through float), BOOLEAN becomes a JSON boolean, and everything else (STRING, DATE, TIMESTAMP, unknown) becomes a string. Tables without data types have only string columns — use the Column Type Overrides below to set their types.",
         "dependencies": {
           "mode": "row_as_json"
         }

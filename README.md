@@ -124,8 +124,10 @@ as with any other mid-run failure; fix the data and re-run (map a **Message ID**
 column and enable duplicate detection to avoid repeats).
 
 Numbers are never routed through a binary `float`: the decimal text of the cell is
-validated and written into the JSON as-is, so a `NUMERIC(38,18)` value keeps every
-digit and trailing zeros (`1.50` stays `1.50`). The writer cannot control how the
+validated and written in plain decimal notation (see the spellings above), so a
+`NUMERIC(38,18)` value keeps every digit and trailing zeros (`1.50` stays `1.50`).
+The notation can change (`1e-7` becomes `0.0000001`), the value and its precision
+do not. The writer cannot control how the
 consumer parses it: JSON parsers that read numbers as IEEE 754 doubles (JavaScript's
 `JSON.parse`, many default settings) round integers beyond 2^53 and decimals beyond
 about 15-17 significant digits. If your consumers need exact large or high-precision
